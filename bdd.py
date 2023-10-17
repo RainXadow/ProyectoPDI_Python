@@ -27,10 +27,9 @@ def seleccion():
     opcion = input('Selecciona una opción: ')
 
     if opcion == '1':
-        registrar_usuario()
+        return registrar_usuario()
     elif opcion == '2':
-        if iniciar_sesion():
-            return True
+        return iniciar_sesion()
     elif opcion == '3':
         exit()
     else:

@@ -6,10 +6,11 @@ import shutil
 
 def autenticar_usuario():
     intentos = 2
-    if seleccion() == 1:
+    opcion = seleccion()
+    if opcion == 1:
         print("\nAutenticación exitosa.\n")
         return True
-    elif seleccion() == 2:
+    elif opcion == 2:
         print("\nAutenticación fallida.\n")
         while intentos > 0:
             if iniciar_sesion():
@@ -18,8 +19,16 @@ def autenticar_usuario():
                 print("\nAutenticación fallida.")
                 intentos -= 1
         return False
-    elif seleccion() == 3:
-        autenticar_usuario()
+    elif opcion == 3:
+        print("\nUsuario registrado, ahora inicia sesion.\n")
+        while intentos > 0:
+            if iniciar_sesion():
+                return True
+            else:   
+                print("\nAutenticación fallida.")
+                intentos -= 1
+        return False
+    
 
 def subir_archivo():
     archivos = filedialog.askopenfilenames()
