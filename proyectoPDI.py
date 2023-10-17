@@ -1,4 +1,8 @@
 import os
+import tkinter as tk
+from tkinter import filedialog
+import shutil
+
 
 # Datos de usuario y contraseña predeterminados
 usuario_predeterminado = "usuario"
@@ -18,6 +22,15 @@ def autenticar_usuario():
     print("Demasiados intentos fallidos. Saliendo del programa.")
     return False
 
+def subir_archivo():
+    archivos = filedialog.askopenfilenames()
+    carpeta_destino = "Drive"
+    
+    for archivo in archivos:
+        shutil.copy(archivo, os.path.join(carpeta_destino, os.path.basename(archivo)))
+    
+    print("Archivos subidos con éxito.")
+
 def gestionar_drive():
     if autenticar_usuario():
         drive_folder = "Drive"
@@ -27,7 +40,8 @@ def gestionar_drive():
             print("\nMenú de opciones:")
             print("1. Crear archivo")
             print("2. Crear carpeta")
-            print("3. Salir")
+            print("3. Subir archivo")
+            print("4. Salir")
             opcion = input("Seleccione una opción: ")
             if opcion == "1":
                 archivo = input("Nombre del archivo a subir: ")
@@ -42,7 +56,9 @@ def gestionar_drive():
                     print(f"Carpeta '{carpeta}' creada con éxito.")
                 else:
                     print(f"La carpeta '{carpeta}' ya existe.")
-            elif opcion == "3":
+            elif opcion =="3":
+                subir_archivo()
+            elif opcion == "4":
                 print("Saliendo del programa.")
                 break
             else:
