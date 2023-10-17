@@ -1,26 +1,23 @@
 import os
 import tkinter as tk
+from bdd import iniciar_sesion, seleccion
 from tkinter import filedialog
 import shutil
 
-
-# Datos de usuario y contraseña predeterminados
-usuario_predeterminado = "usuario"
-contrasena_predeterminada = "contrasena"
-
 def autenticar_usuario():
-    intentos = 3
-    while intentos > 0:
-        usuario = input("Usuario: ")
-        contrasena = input("Contraseña: ")
-        if usuario == usuario_predeterminado and contrasena == contrasena_predeterminada:
-            print("Autenticación exitosa.")
-            return True
-        else:
-            print("Autenticación fallida. Intentos restantes:", intentos - 1)
-            intentos -= 1
-    print("Demasiados intentos fallidos. Saliendo del programa.")
-    return False
+    intentos = 2
+    if seleccion():
+        print("\nAutenticación exitosa.\n")
+        return True
+    else:
+        print("\nAutenticación fallida.")
+        while intentos > 0:
+            if iniciar_sesion():
+                return True
+            else:   
+                print("\nAutenticación fallida.")
+                intentos -= 1
+        return False
 
 def subir_archivo():
     archivos = filedialog.askopenfilenames()
