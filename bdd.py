@@ -5,19 +5,23 @@ import shutil
 import sys
 import sqlite3
 import hashlib
+import uuid
 
 # Conexión a la base de datos
-conn = sqlite3.connect('usuarios.db')
+conn = sqlite3.connect('usuarios2.db')
 cursor = conn.cursor()
 
 # Creamos la tabla
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS usuarios (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ID TEXT PRIMARY KEY,
         username TEXT,
         password TEXT
     )
 ''')
+def generar_uuid128():
+    new_uuid = uuid.uuid4()
+    return str(new_uuid)
 
 def seleccion():
     print('1. Registrar usuario')
@@ -44,16 +48,17 @@ def registrar_usuario():
     username = input('Ingresa un nombre de usuario: ')
     password = input('Ingresa una contraseña: ')
     hashed_password = hashlib.sha256(password.encode()).hexdigest()
-    cursor.execute('INSERT INTO usuarios (username, password) VALUES (?, ?)', (username, hashed_password))
+    nuevo_uuid = generar_uuid128()
+    cursor.execute('INSERT INTO usuarios (ID, username, password) VALUES (?, ?, ?)', (nuevo_uuid, username, hashed_password))
     conn.commit()
     print('USUARIO REGISTRADO CON ÉXITO.\n')
     # Crear una carpeta con el nombre del usuario
-    user_folder = f'usuarios/{username}'
+    user_folder = f'usuarios/{nuevo_uuid}'
     if not os.path.exists(user_folder):
         os.makedirs(user_folder)
-        print(f'CARPETA DE USUARIO "{username}" CREADA CON ÉXITO.\n')
+        print(f'CARPETA DE USUARIO "{nuevo_uuid}" CREADA CON ÉXITO.\n')
     else:
-        print(f'La CARPETA DE USUARIO "{username}" YA EXISTE.\n')
+        print(f'La CARPETA DE USUARIO "{nuevo_uuid}" YA EXISTE.\n')
 
 def iniciar_sesion():
     username = input('Ingresa tu nombre de usuario: ')
