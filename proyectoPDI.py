@@ -31,6 +31,25 @@ def subir_archivo():
     
     print("Archivos subidos con éxito.")
 
+def subir_carpeta():
+    carpeta_seleccionada = filedialog.askdirectory()
+    carpeta_destino = "Drive"
+    
+    if not carpeta_seleccionada:
+        print("No se seleccionó una carpeta.")
+        return
+    
+    carpeta_nombre = os.path.basename(carpeta_seleccionada)
+    carpeta_destino = os.path.join(carpeta_destino, carpeta_nombre)
+    
+    try:
+        shutil.copytree(carpeta_seleccionada, carpeta_destino)
+        print(f"Carpeta '{carpeta_nombre}' subida con éxito.")
+    except FileExistsError:
+        print(f"La carpeta '{carpeta_nombre}' ya existe en el destino.")
+    except Exception as e:
+        print(f"Error al subir la carpeta: {e}")
+
 def gestionar_drive():
     if autenticar_usuario():
         drive_folder = "Drive"
@@ -41,7 +60,8 @@ def gestionar_drive():
             print("1. Crear archivo")
             print("2. Crear carpeta")
             print("3. Subir archivo")
-            print("4. Salir")
+            print("4. Subir carpeta")
+            print("5. Salir")
             opcion = input("Seleccione una opción: ")
             if opcion == "1":
                 archivo = input("Nombre del archivo a subir: ")
@@ -59,6 +79,8 @@ def gestionar_drive():
             elif opcion =="3":
                 subir_archivo()
             elif opcion == "4":
+                subir_carpeta()
+            elif opcion == "5":
                 print("Saliendo del programa.")
                 break
             else:
