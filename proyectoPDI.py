@@ -6,11 +6,12 @@ import shutil
 
 def autenticar_usuario():
     intentos = 2
-    if seleccion():
+    opcion = seleccion()
+    if opcion == 1:
         print("\nAutenticación exitosa.\n")
         return True
-    else:
-        print("\nAutenticación fallida.")
+    elif opcion == 2:
+        print("\nAutenticación fallida.\n")
         while intentos > 0:
             if iniciar_sesion():
                 return True
@@ -18,6 +19,16 @@ def autenticar_usuario():
                 print("\nAutenticación fallida.")
                 intentos -= 1
         return False
+    elif opcion == 3:
+        print("\nUsuario registrado, ahora inicia sesion.\n")
+        while intentos > 0:
+            if iniciar_sesion():
+                return True
+            else:   
+                print("\nAutenticación fallida.")
+                intentos -= 1
+        return False
+    
 
 def subir_archivo():
     archivos = filedialog.askopenfilenames()
@@ -49,7 +60,7 @@ def subir_carpeta():
 
 def gestionar_drive():
     if autenticar_usuario():
-        drive_folder = "Drive"
+        drive_folder = "Servidor"
         if not os.path.exists(drive_folder):
             os.mkdir(drive_folder)
         while True:
