@@ -3,7 +3,9 @@ import tkinter as tk
 from bdd import iniciar_sesion, seleccion
 from tkinter import filedialog
 import shutil
+import json
 
+user_id=None
 def autenticar_usuario():
     intentos = 2
     opcion = seleccion()
@@ -32,7 +34,7 @@ def autenticar_usuario():
 
 def subir_archivo():
     archivos = filedialog.askopenfilenames()
-    carpeta_destino = "Drive"
+    carpeta_destino = f'Servidor/{user_id}'
     
     for archivo in archivos:
         shutil.copy(archivo, os.path.join(carpeta_destino, os.path.basename(archivo)))
@@ -41,7 +43,7 @@ def subir_archivo():
 
 def subir_carpeta():
     carpeta_seleccionada = filedialog.askdirectory()
-    carpeta_destino = "Drive"
+    carpeta_destino = f'Servidor/{user_id}'
     
     if not carpeta_seleccionada:
         print("No se seleccionó una carpeta.")
@@ -59,8 +61,15 @@ def subir_carpeta():
         print(f"Error al subir la carpeta: {e}")
 
 def gestionar_drive():
+    global user_id
     if autenticar_usuario():
-        drive_folder = "Servidor"
+        # Cargar la variable de sesión desde el archivo JSON
+        with open('session_data.json', 'r') as file:
+            session = json.load(file)
+        user_id= session.get('user_uuid')
+        print({user_id})
+        drive_folder = f'Servidor/{user_id}'
+        print({drive_folder})
         if not os.path.exists(drive_folder):
             os.mkdir(drive_folder)
         while True:

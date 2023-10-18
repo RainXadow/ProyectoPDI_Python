@@ -6,6 +6,9 @@ import sys
 import sqlite3
 import hashlib
 import uuid
+import json
+
+nuevo_uuid = None
 
 # Conexión a la base de datos
 conn = sqlite3.connect('usuarios2.db')
@@ -41,6 +44,7 @@ def seleccion():
 
 # Definimos las funciones de registro e inicio de sesión
 def registrar_usuario():
+    global nuevo_uuid
     username = input('Ingresa un nombre de usuario: ')
     password = input('Ingresa una contraseña: ')
     hashed_password = hashlib.sha256(password.encode()).hexdigest()
@@ -65,7 +69,12 @@ def iniciar_sesion():
     cursor.execute('SELECT * FROM usuarios WHERE username=? AND password=?', (username, hashed_password))
     usuario = cursor.fetchone()
     if usuario:
+        nuevo_uuid = usuario[0]
         print(f'\nINICIO DE SESION EXITOSO PARA {username}\n')
+        session = {'user_uuid': nuevo_uuid}
+        # Guardar la variable de sesión en un archivo JSON
+        with open('session_data.json', 'w') as file:
+            json.dump(session, file)
         return 1
     else:
         print('\nNOMBRE DE USUARIO O CONTRASEÑA INCORRECTOS. \n')
