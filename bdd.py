@@ -1,3 +1,4 @@
+import json
 import os
 import tkinter as tk
 from tkinter import filedialog
@@ -6,7 +7,6 @@ import sys
 import sqlite3
 import hashlib
 import uuid
-import json
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
@@ -205,12 +205,16 @@ def iniciar_sesion():
             if challenge_decrypted == challenge:
                 # El reto se descifró correctamente, así que el usuario está autenticado.
                 print(f'\nINICIO DE SESION EXITOSO PARA {username}\n')
+                # Abrir el archivo session_data.json y escribir el ID del usuario que ha iniciado sesión
+                with open('session_data.json', 'w') as f:
+                    data = {'user_uuid': usuario[0]}
+                    json.dump(data, f)
                 return 1
             else:
                 print('\nFALLO EN LA VERIFICACION DE LA CLAVE PRIVADA.\n')
                 return 3
         except Exception as e:
-            print(f'Error: {e}')
+            print(f'\nERROR: {e}\n')
             return 3
     else:
         print('\nNOMBRE DE USUARIO O CONTRASEÑA INCORRECTOS. \n')
