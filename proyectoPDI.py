@@ -22,14 +22,7 @@ def autenticar_usuario():
                 intentos -= 1
         return False
     elif opcion == 3:
-        print("\nUsuario registrado, ahora inicia sesion.\n")
-        while intentos > 0:
-            if iniciar_sesion():
-                return True
-            else:   
-                print("\nAutenticación fallida.")
-                intentos -= 1
-        return False
+        return autenticar_usuario()
     
 
 def subir_archivo():
@@ -62,7 +55,9 @@ def subir_carpeta():
 
 def gestionar_drive():
     global user_id
-    if autenticar_usuario():
+    opcion = autenticar_usuario()
+    print("autenticar usuario: ", opcion)
+    if opcion == True:
         # Cargar la variable de sesión desde el archivo JSON
         with open('session_data.json', 'r') as file:
             session = json.load(file)
