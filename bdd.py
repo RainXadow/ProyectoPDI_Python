@@ -130,9 +130,25 @@ def iniciar_sesion():
         encrypted_private_key = usuario[4]
         public_key = RSA.import_key(usuario[3])
         private_key_encrypted = b64decode(encrypted_private_key.encode('utf-8'))
-        nonce = private_key_encrypted[16:32]  # Extraemos el nonce.
-        tag = private_key_encrypted[-16:]  # Extraemos el tag.
-        ciphertext = private_key_encrypted[:-32]  # El resto es el texto cifrado.
+        
+        # Asumiendo que el tamaño de nonce, tag y salt son 16 bytes cada uno
+        nonce_size = 16
+        tag_size = 16
+        salt_size = 16
+        
+        # Calculamos la posición donde empieza cada elemento
+        nonce_start = len(private_key_encrypted) - nonce_size - tag_size - salt_size
+        tag_start = len(private_key_encrypted) - tag_size - salt_size
+        salt_start = len(private_key_encrypted) - salt_size
+        
+        
+         # Extraemos el nonce, tag y salt
+        nonce = private_key_encrypted[nonce_start:tag_start]
+        tag = private_key_encrypted[tag_start:salt_start]
+        salt = private_key_encrypted[salt_start:]
+
+        # El ciphertext es todo lo demás
+        ciphertext = private_key_encrypted[:nonce_start]
 
         # Preparamos el descifrador.
         cipher = PKCS1_OAEP.new(public_key)
@@ -149,7 +165,6 @@ def iniciar_sesion():
             # 1. Descifrar la clave privada con su contraseña.
             # 2. Descifrar el "reto" con su clave privada.
             # Desciframos la clave privada (esto se haría en el lado del cliente en un escenario real).
-            salt = private_key_encrypted[-16:]
             key = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
             cipher_aes = AES.new(key, AES.MODE_EAX, nonce=nonce)
             private_key_decrypted = cipher_aes.decrypt_and_verify(ciphertext, tag)
@@ -162,12 +177,12 @@ def iniciar_sesion():
             if challenge_decrypted == challenge:
                 # El reto se descifró correctamente, así que el usuario está autenticado.
                 print(f'\nINICIO DE SESION EXITOSO PARA {username}\n')
-                # ... Resto del código de manejo de sesión ...
+                return 1
             else:
                 print('\nFALLO EN LA VERIFICACION DE LA CLAVE PRIVADA.\n')
                 return 3
         except Exception as e:
-            print('\nFALLO EN LA VERIFICACION DE LA CLAVE PRIVADA.\n')
+            print(f'Error: {e}')
             return 3
     else:
         print('\nNOMBRE DE USUARIO O CONTRASEÑA INCORRECTOS. \n')
