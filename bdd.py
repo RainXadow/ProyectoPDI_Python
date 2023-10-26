@@ -15,11 +15,11 @@ from base64 import b64encode, b64decode
 
 nuevo_uuid = None
 
-# Conexión a la base de datos
+# Establece la conexión con una base de datos SQLite y crea una tabla 'usuarios' si no existe.
 conn = sqlite3.connect('usuarios2.db')
 cursor = conn.cursor()
 
-# Creamos la tabla
+# Crea la tabla 'usuarios' en la base de datos con campos para ID, nombre de usuario, contraseña, clave pública y clave privada.
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS usuarios (
         ID TEXT PRIMARY KEY,
@@ -31,16 +31,32 @@ cursor.execute('''
 ''')
 
 def generar_uuid128():
+    """
+    Genera un UUID (Identificador Único Universal) versión 4, que se usa como un identificador único para cada usuario.
+    """
     new_uuid = uuid.uuid4()
     return str(new_uuid)
 
 def generar_claves_rsa():
+    """
+    Genera un par de claves RSA (una clave pública y una clave privada) para el cifrado.
+    Devuelve ambas claves.
+    """
     key = RSA.generate(2048)
     private_key = key.export_key()
     public_key = key.publickey().export_key()
     return public_key, private_key
 
 def cifrar_clave_privada(clave_privada, password):
+    """
+    Cifra la clave privada RSA de un usuario utilizando AES.
+
+    Args:
+    - clave_privada: La clave privada RSA a cifrar.
+    - password: La contraseña del usuario, que se usa para generar una clave AES.
+
+    Devuelve la clave privada cifrada en formato de cadena codificada en base64.
+    """
     salt = get_random_bytes(AES.block_size)
     private_key_salt = salt[:16]  # Usamos los primeros 16 bytes para el salt
     key = hashlib.pbkdf2_hmac('sha256', password.encode(), private_key_salt, 100000)
@@ -50,6 +66,9 @@ def cifrar_clave_privada(clave_privada, password):
     return encrypted_private_key
 
 def seleccion():
+    """
+    Muestra un menú de selección al usuario y ejecuta la función correspondiente a la elección del usuario.
+    """
     print('1. Registrar usuario')
     print('2. Iniciar sesión')
     print('3. Salir')
@@ -67,6 +86,12 @@ def seleccion():
 
 # Definimos las funciones de registro e inicio de sesión
 def registrar_usuario():
+    """
+    Registra un nuevo usuario en la base de datos.
+    El usuario proporciona un nombre de usuario y una contraseña.
+    Se genera un UUID para el usuario y se cifra su clave privada RSA con la contraseña.
+    La información del usuario se almacena en la base de datos.
+    """
     global nuevo_uuid
     username = input('Ingresa un nombre de usuario: ')
     password = input('Ingresa una contraseña: ')
@@ -88,6 +113,11 @@ def registrar_usuario():
         return 3
 
 def iniciar_sesion():
+    """
+    Permite a un usuario iniciar sesión verificando su nombre de usuario y contraseña.
+    Adicionalmente, realiza una verificación de dos pasos utilizando un "reto" cifrado con la clave privada del usuario,
+    que debe ser descifrado correctamente para completar la autenticación.
+    """
     username = input('Ingresa tu nombre de usuario: ')
     password = input('Ingresa tu contraseña: ')
     hashed_password = hashlib.sha256(password.encode()).hexdigest()
@@ -135,10 +165,10 @@ def iniciar_sesion():
                 # ... Resto del código de manejo de sesión ...
             else:
                 print('\nFALLO EN LA VERIFICACION DE LA CLAVE PRIVADA.\n')
-                return 2
+                return 3
         except Exception as e:
             print('\nFALLO EN LA VERIFICACION DE LA CLAVE PRIVADA.\n')
-            return 2
+            return 3
     else:
         print('\nNOMBRE DE USUARIO O CONTRASEÑA INCORRECTOS. \n')
         return 2
