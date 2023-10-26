@@ -25,10 +25,10 @@ cursor.execute('''
         ID TEXT PRIMARY KEY,
         username TEXT,
         password TEXT,
-        public_key TEXT,
-        private_key TEXT
+        public_key TEXT
     )
 ''')
+
 
 def generar_uuid128():
     """
@@ -46,6 +46,25 @@ def generar_claves_rsa():
     private_key = key.export_key()
     public_key = key.publickey().export_key()
     return public_key, private_key
+
+def guardar_clave_privada_en_archivo(encrypted_private_key, uuid):
+    """
+    Guarda la clave privada cifrada en un archivo en el disco local.
+    """
+    file_path = f"{uuid}_private_key.txt"
+    with open(file_path, 'w') as file:
+        file.write(encrypted_private_key)
+    print(f"Clave privada almacenada en: {file_path}")
+    
+def seleccionar_archivo_clave_privada():
+    """
+    Abre un diálogo para que el usuario seleccione un archivo de clave privada cifrada.
+    Devuelve la ruta del archivo seleccionado.
+    """
+    root = tk.Tk()
+    root.withdraw()  # No queremos una ventana completa de Tk, solo el diálogo
+    file_path = filedialog.askopenfilename()
+    return file_path
 
 def cifrar_clave_privada(clave_privada, password):
     """
@@ -99,7 +118,10 @@ def registrar_usuario():
     public_key, private_key = generar_claves_rsa()
     encrypted_private_key = cifrar_clave_privada(private_key, password[:32])  # Utilizamos la primera mitad de la contraseña hash
     nuevo_uuid = generar_uuid128()
-    cursor.execute('INSERT INTO usuarios (ID, username, password, public_key, private_key) VALUES (?, ?, ?, ?, ?)', (nuevo_uuid, username, hashed_password, public_key.decode('utf-8'), encrypted_private_key))
+    # Guardar la clave privada en un archivo en lugar de en la base de datos.
+    guardar_clave_privada_en_archivo(encrypted_private_key, nuevo_uuid)
+    cursor.execute('INSERT INTO usuarios (ID, username, password, public_key) VALUES (?, ?, ?, ?)', 
+                   (nuevo_uuid, username, hashed_password, public_key.decode('utf-8')))
     conn.commit()
     print('USUARIO REGISTRADO CON ÉXITO.\n')
     # Crear una carpeta con el nombre del usuario
@@ -126,8 +148,14 @@ def iniciar_sesion():
     usuario = cursor.fetchone()
 
     if usuario:
-        # Verificación adicional con la clave privada.
-        encrypted_private_key = usuario[4]
+        file_path = seleccionar_archivo_clave_privada()
+        if not file_path:
+            print("\nNo se seleccionó ningún archivo.\n")
+            return 3
+
+        with open(file_path, 'r') as file:
+            encrypted_private_key = file.read()
+        
         public_key = RSA.import_key(usuario[3])
         private_key_encrypted = b64decode(encrypted_private_key.encode('utf-8'))
         
