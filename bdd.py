@@ -61,9 +61,12 @@ def seleccionar_archivo_clave_privada():
     Abre un diálogo para que el usuario seleccione un archivo de clave privada cifrada.
     Devuelve la ruta del archivo seleccionado.
     """
+    print("Adjuntar clave privada del usuario")
     root = tk.Tk()
     root.withdraw()  # No queremos una ventana completa de Tk, solo el diálogo
+    root.attributes('-topmost', True)  # Nos aseguramos de que esté en primer plano
     file_path = filedialog.askopenfilename()
+    root.attributes('-topmost', False) # Desactivamos el primer plano
     return file_path
 
 def cifrar_clave_privada(clave_privada, password):
