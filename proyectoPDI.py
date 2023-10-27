@@ -1,30 +1,17 @@
 import os
 import tkinter as tk
-from bdd import iniciar_sesion, seleccion
+from bdd import iniciar_sesion, seleccion, registrar_usuario
 from tkinter import filedialog
 import shutil
 import json
-
+import sys
 user_id=None
 def autenticar_usuario():
-    intentos = 2
-    opcion = seleccion()
-    if opcion == 1:
-        print("\nAutenticación exitosa.\n")
+    resultado = iniciar_sesion()
+    if resultado == 1:
         return True
-    elif opcion == 2:
-        print("\nAutenticación fallida.\n")
-        while intentos > 0:
-            if iniciar_sesion():
-                return True
-            else:   
-                print("\nAutenticación fallida.")
-                intentos -= 1
-        return False
-    elif opcion == 3:
-        return autenticar_usuario()
+    return False
     
-
 def subir_archivo():
     archivos = filedialog.askopenfilenames()
     carpeta_destino = f'Servidor/{user_id}'
@@ -55,47 +42,64 @@ def subir_carpeta():
 
 def gestionar_drive():
     global user_id
-    opcion = autenticar_usuario()
-    print("autenticar usuario: ", opcion)
-    if opcion == True:
-        # Cargar la variable de sesión desde el archivo JSON
-        with open('session_data.json', 'r') as file:
+    # Cargar la variable de sesión desde el archivo JSON
+    with open('session_data.json', 'r') as file:
             session = json.load(file)
-        user_id= session.get('user_uuid')
-        print({user_id})
-        drive_folder = f'Servidor/{user_id}'
-        print({drive_folder})
-        if not os.path.exists(drive_folder):
-            os.mkdir(drive_folder)
-        while True:
-            print("\nMenú de opciones:")
-            print("1. Crear archivo")
-            print("2. Crear carpeta")
-            print("3. Subir archivo")
-            print("4. Subir carpeta")
-            print("5. Salir")
-            opcion = input("Seleccione una opción: ")
-            if opcion == "1":
-                archivo = input("Nombre del archivo a subir: ")
-                with open(os.path.join(drive_folder, archivo), "w") as f:
-                    pass
-                print(f"Archivo '{archivo}' subido con éxito.")
-            elif opcion == "2":
-                carpeta = input("Nombre de la carpeta a crear: ")
-                carpeta_path = os.path.join(drive_folder, carpeta)
-                if not os.path.exists(carpeta_path):
-                    os.mkdir(carpeta_path)
-                    print(f"Carpeta '{carpeta}' creada con éxito.")
-                else:
-                    print(f"La carpeta '{carpeta}' ya existe.")
-            elif opcion =="3":
-                subir_archivo()
-            elif opcion == "4":
-                subir_carpeta()
-            elif opcion == "5":
-                print("Saliendo del programa.")
-                break
+    user_id= session.get('user_uuid')
+    print({user_id})
+    drive_folder = f'Servidor/{user_id}'
+    print({drive_folder})
+    if not os.path.exists(drive_folder):
+         os.mkdir(drive_folder)
+    while True:
+        print("\nMenú de opciones:")
+        print("1. Crear archivo")
+        print("2. Crear carpeta")
+        print("3. Subir archivo")
+        print("4. Subir carpeta")
+        print("5. Salir")
+        opcion = input("Seleccione una opción: ")
+        if opcion == "1":
+            archivo = input("Nombre del archivo a subir: ")
+            with open(os.path.join(drive_folder, archivo), "w") as f:
+                pass
+            print(f"Archivo '{archivo}' subido con éxito.")
+        elif opcion == "2":
+            carpeta = input("Nombre de la carpeta a crear: ")
+            carpeta_path = os.path.join(drive_folder, carpeta)
+            if not os.path.exists(carpeta_path):
+                os.mkdir(carpeta_path)
+                print(f"Carpeta '{carpeta}' creada con éxito.")
             else:
-                print("Opción no válida. Intente nuevamente.")
+                print(f"La carpeta '{carpeta}' ya existe.")
+        elif opcion =="3":
+            subir_archivo()
+        elif opcion == "4":
+            subir_carpeta()
+        elif opcion == "5":
+            sys.exit("Saliendo del programa")
+        else:
+            print("Opción no válida. Intente nuevamente.")
 
-gestionar_drive()
+def menu_principal():
+    while True:
+        print("\nMenú Principal:")
+        print("1. Iniciar sesión")
+        print("2. Registrarse")
+        print("3. Salir")
+        opcion = input("Seleccione una opción: ")
+        
+        if opcion == "1":
+            if autenticar_usuario():
+                gestionar_drive()
+            else:
+                print("Autenticación fallida.")
+        if opcion == "2":
+            registrar_usuario()
+        elif opcion == "3":
+            print("Saliendo del programa.")
+            break
+        else:
+            print("Opción no válida. Intente nuevamente.")
+
+menu_principal()
