@@ -47,11 +47,12 @@ def generar_claves_rsa():
     public_key = key.publickey().export_key()
     return public_key, private_key
 
-def guardar_clave_privada_en_archivo(encrypted_private_key, uuid):
+def guardar_clave_privada_en_archivo(encrypted_private_key, username, uuid):
     """
     Guarda la clave privada cifrada en un archivo en el disco local.
     """
-    file_path = f"{uuid}_private_key.txt"
+    os.makedirs(username)
+    file_path = f"{username}/{uuid}_private_key.txt"
     with open(file_path, 'w') as file:
         file.write(encrypted_private_key)
     print(f"Clave privada almacenada en: {file_path}")
@@ -122,7 +123,7 @@ def registrar_usuario():
     encrypted_private_key = cifrar_clave_privada(private_key, password[:32])  # Utilizamos la primera mitad de la contraseña hash
     nuevo_uuid = generar_uuid128()
     # Guardar la clave privada en un archivo en lugar de en la base de datos.
-    guardar_clave_privada_en_archivo(encrypted_private_key, nuevo_uuid)
+    guardar_clave_privada_en_archivo(encrypted_private_key, username, nuevo_uuid)
     cursor.execute('INSERT INTO usuarios (ID, username, password, public_key) VALUES (?, ?, ?, ?)', 
                    (nuevo_uuid, username, hashed_password, public_key.decode('utf-8')))
     conn.commit()
