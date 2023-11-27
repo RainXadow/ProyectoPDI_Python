@@ -30,6 +30,48 @@ cursor.execute('''
 ''')
 
 
+#Fase 2
+
+def cifrar_con_aes(user_id, datos):
+    # Obtener el hash de la contraseña del usuario desde la base de datos
+    conn = sqlite3.connect('usuarios2.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT password FROM usuarios WHERE ID=?', (user_id,))
+    password_hash = cursor.fetchone()[0]
+    conn.close()
+
+    # Generar clave AES a partir del hash de la contraseña
+    clave_aes = hashlib.sha256(password_hash.encode()).digest()
+
+    # Cifrar los datos
+    cipher_aes = AES.new(clave_aes, AES.MODE_EAX)
+    datos_cifrados, tag = cipher_aes.encrypt_and_digest(datos)
+
+    # Devolver los datos cifrados junto con el nonce y el tag
+    return cipher_aes.nonce, tag, datos_cifrados
+
+
+def descifrar_con_aes(user_id, datos_cifrados):
+    # Obtener el hash de la contraseña del usuario desde la base de datos
+    conn = sqlite3.connect('usuarios2.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT password FROM usuarios WHERE ID=?', (user_id,))
+    password_hash = cursor.fetchone()[0]
+    conn.close()
+
+    # Generar clave AES a partir del hash de la contraseña
+    clave_aes = hashlib.sha256(password_hash.encode()).digest()
+
+    # Extraer nonce, tag y el texto cifrado
+    nonce = datos_cifrados[:16]
+    tag = datos_cifrados[16:32]
+    texto_cifrado = datos_cifrados[32:]
+
+    # Descifrar los datos
+    cipher_aes = AES.new(clave_aes, AES.MODE_EAX, nonce)
+    datos_descifrados = cipher_aes.decrypt_and_verify(texto_cifrado, tag)
+    return datos_descifrados
+
 def generar_uuid128():
     """
     Genera un UUID (Identificador Único Universal) versión 4, que se usa como un identificador único para cada usuario.
