@@ -12,6 +12,8 @@ from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
 from Crypto.Cipher import PKCS1_OAEP
 from base64 import b64encode, b64decode
+import secrets
+import base64
 
 nuevo_uuid = None
 
@@ -160,14 +162,19 @@ def registrar_usuario():
     global nuevo_uuid
     username = input('Ingresa un nombre de usuario: ')
     password = input('Ingresa una contraseña: ')
-    hashed_password = hashlib.sha256(password.encode()).hexdigest()
+    # Generar una salt aleatoria
+    salt = secrets.token_bytes(16)
+    # Crear un hash de la contraseña con la salt
+    hashed_password = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
+    # Concatenar salt y hash para almacenarlos juntos
+    salt_hash_combined = base64.b64encode(salt + hashed_password).decode()
     public_key, private_key = generar_claves_rsa()
-    encrypted_private_key = cifrar_clave_privada(private_key, password[:32])  # Utilizamos la primera mitad de la contraseña hash
+    encrypted_private_key = cifrar_clave_privada(private_key, password[:32])  # Utilizamos la primera mitad de la contraseña como hash
     nuevo_uuid = generar_uuid128()
     # Guardar la clave privada en un archivo en lugar de en la base de datos.
     guardar_clave_privada_en_archivo(encrypted_private_key, username, nuevo_uuid)
     cursor.execute('INSERT INTO usuarios (ID, username, password, public_key) VALUES (?, ?, ?, ?)', 
-                   (nuevo_uuid, username, hashed_password, public_key.decode('utf-8')))
+                   (nuevo_uuid, username, salt_hash_combined, public_key.decode('utf-8')))
     conn.commit()
     print('USUARIO REGISTRADO CON ÉXITO.\n')
     # Crear una carpeta con el nombre del usuario
@@ -188,10 +195,21 @@ def iniciar_sesion():
     """
     username = input('Ingresa tu nombre de usuario: ')
     password = input('Ingresa tu contraseña: ')
-    hashed_password = hashlib.sha256(password.encode()).hexdigest()
-
-    cursor.execute('SELECT * FROM usuarios WHERE username=? AND password=?', (username, hashed_password))
+    # Obtener el hash de la contraseña y la salt de la base de datos
+    cursor.execute('SELECT * FROM usuarios WHERE username=?', (username,))
     usuario = cursor.fetchone()
+
+    if usuario:
+        
+        salt_hash_combined = base64.b64decode(usuario[2])  # Asegúrate de que el índice sea correcto
+        salt = salt_hash_combined[:16]  # Los primeros 16 bytes son la salt
+        stored_hash = salt_hash_combined[16:]  # El resto es el hash
+
+        # Verificar el hash de la contraseña
+        password_verificacion = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
+        if password_verificacion != stored_hash:
+            print('\nNOMBRE DE USUARIO O CONTRASEÑA INCORRECTOS. \n')
+            return 2
 
     if usuario:
         file_path = seleccionar_archivo_clave_privada()
