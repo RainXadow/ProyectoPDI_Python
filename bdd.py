@@ -1,19 +1,19 @@
+import base64
+import hashlib
 import json
 import os
-import tkinter as tk
-from tkinter import filedialog
-import shutil
-import sys
-import sqlite3
-import hashlib
-import uuid
-from Crypto.PublicKey import RSA
-from Crypto.Cipher import AES
-from Crypto.Random import get_random_bytes
-from Crypto.Cipher import PKCS1_OAEP
-from base64 import b64encode, b64decode
 import secrets
-import base64
+import shutil
+import sqlite3
+import sys
+import tkinter as tk
+import uuid
+from base64 import b64decode, b64encode
+from tkinter import filedialog
+
+from Crypto.Cipher import AES, PKCS1_OAEP
+from Crypto.PublicKey import RSA
+from Crypto.Random import get_random_bytes
 
 nuevo_uuid = None
 
@@ -31,71 +31,40 @@ cursor.execute('''
     )
 ''')
 
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS archivos (
+        archivo_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT,
+        nombre_archivo TEXT,
+        clave_AES_cifrada TEXT,
+        FOREIGN KEY(user_id) REFERENCES usuarios(ID)
+    )
+''')
+
 
 #Fase 2
 
 def cifrar_con_aes(user_id, datos):
-    # Obtener el hash de la contraseña del usuario desde la base de datos
-    conn = sqlite3.connect('usuarios2.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT password FROM usuarios WHERE ID=?', (user_id,))
-    password_hash = cursor.fetchone()[0]
-    conn.close()
-
-    # Generar clave AES a partir del hash de la contraseña
-    clave_aes = hashlib.sha256(password_hash.encode()).digest()
-
-    # Cifrar los datos
+    # Generar una clave AES aleatoria y un nonce
+    clave_aes = os.urandom(32)  # 256 bits para AES
     cipher_aes = AES.new(clave_aes, AES.MODE_EAX)
     datos_cifrados, tag = cipher_aes.encrypt_and_digest(datos)
 
-    # Devolver los datos cifrados junto con el nonce y el tag
-    return cipher_aes.nonce, tag, datos_cifrados
-
-'''
-def cifrar_con_aes(user_id, datos):
-# Generar una clave AES aleatoria y un nonce
-clave_aes = os.urandom(32)  # 256 bits para AES
-cipher_aes = AES.new(clave_aes, AES.MODE_EAX)
-datos_cifrados, tag = cipher_aes.encrypt_and_digest(datos)
-
-# Obtener la clave pública RSA del usuario desde la base de datos
-conn = sqlite3.connect('usuarios2.db')
-cursor = conn.cursor()
-cursor.execute('SELECT public_key FROM usuarios WHERE ID=?', (user_id,))
-clave_publica_rsa = cursor.fetchone()[0]
-conn.close()
-
-# Cifrar la clave AES con la clave pública RSA
-clave_publica = RSA.import_key(clave_publica_rsa)
-cipher_rsa = PKCS1_OAEP.new(clave_publica)
-clave_aes_cifrada = cipher_rsa.encrypt(clave_aes)
-
-# Devolver los datos cifrados, el nonce, el tag y la clave AES cifrada
-return cipher_aes.nonce, tag, datos_cifrados, clave_aes_cifrada
-'''
-
-def descifrar_con_aes(user_id, datos_cifrados):
-    # Obtener el hash de la contraseña del usuario desde la base de datos
+    # Obtener la clave pública RSA del usuario desde la base de datos
     conn = sqlite3.connect('usuarios2.db')
     cursor = conn.cursor()
-    cursor.execute('SELECT password FROM usuarios WHERE ID=?', (user_id,))
-    password_hash = cursor.fetchone()[0]
+    cursor.execute('SELECT public_key FROM usuarios WHERE ID=?', (user_id,))
+    clave_publica_rsa = cursor.fetchone()[0]
     conn.close()
 
-    # Generar clave AES a partir del hash de la contraseña
-    clave_aes = hashlib.sha256(password_hash.encode()).digest()
+    # Cifrar la clave AES con la clave pública RSA
+    clave_publica = RSA.import_key(clave_publica_rsa)
+    cipher_rsa = PKCS1_OAEP.new(clave_publica)
+    clave_aes_cifrada = cipher_rsa.encrypt(clave_aes)
 
-    # Extraer nonce, tag y el texto cifrado
-    nonce = datos_cifrados[:16]
-    tag = datos_cifrados[16:32]
-    texto_cifrado = datos_cifrados[32:]
+    # Devolver los datos cifrados, el nonce, el tag y la clave AES cifrada
+    return cipher_aes.nonce, tag, datos_cifrados, clave_aes_cifrada
 
-    # Descifrar los datos
-    cipher_aes = AES.new(clave_aes, AES.MODE_EAX, nonce)
-    datos_descifrados = cipher_aes.decrypt_and_verify(texto_cifrado, tag)
-    return datos_descifrados
-'''
 def descifrar_con_aes(user_id, nonce, tag, datos_cifrados, clave_aes_cifrada):
     # Obtener la clave privada RSA del usuario (esto puede requerir una contraseña)
     # Aquí necesitas la lógica para obtener la clave privada RSA del usuario
@@ -109,7 +78,7 @@ def descifrar_con_aes(user_id, nonce, tag, datos_cifrados, clave_aes_cifrada):
     # Descifrar los datos con la clave AES
     cipher_aes = AES.new(clave_aes, AES.MODE_EAX, nonce)
     datos_descifrados = cipher_aes.decrypt_and_verify(datos_cifrados, tag)
-    return datos_descifrados'''
+    return datos_descifrados
 
 def generar_uuid128():
     """

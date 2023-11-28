@@ -1,10 +1,18 @@
-import os
-import tkinter as tk
-from bdd import iniciar_sesion, seleccion, registrar_usuario, cifrar_con_aes, descifrar_con_aes
-from tkinter import filedialog
-import shutil
 import json
+import os
+import shutil
+import sqlite3
 import sys
+import tkinter as tk
+from tkinter import filedialog
+
+from Crypto.Cipher import PKCS1_OAEP
+from Crypto.PublicKey import RSA
+
+import bdd
+from bdd import (cifrar_con_aes, descifrar_con_aes, iniciar_sesion,
+                 registrar_usuario, seleccion)
+
 user_id=None
 def autenticar_usuario():
     resultado = iniciar_sesion()
@@ -35,6 +43,23 @@ def listar_archivos_usuario(user_id):
         print(f"{idx + 1}. {elemento}")
 
     return elementos
+
+def obtener_clave_aes_cifrada_de_db(user_id, nombre_archivo):
+    conn = sqlite3.connect('usuarios2.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT clave_AES_cifrada FROM archivos WHERE user_id=? AND nombre_archivo=?',
+                   (user_id, nombre_archivo))
+    clave_aes_cifrada = cursor.fetchone()[0]
+    conn.close()
+    return clave_aes_cifrada
+
+def descifrar_clave_aes_con_rsa(user_id, clave_aes_cifrada):
+    clave_privada_rsa = bdd.seleccionar_archivo_clave_privada()
+        
+    clave_privada = RSA.import_key(clave_privada_rsa)
+    cipher_rsa = PKCS1_OAEP.new(clave_privada)
+    clave_aes = cipher_rsa.decrypt(clave_aes_cifrada)
+    return clave_aes
 
 # Descargamos y desciframos
 def descargar_y_descifrar_archivo():
@@ -67,33 +92,27 @@ def descargar_y_descifrar_archivo():
             print(f"Índice {idx + 1} no válido.")
             
 def descargar_y_descifrar_archivo_individual(user_id, ruta_archivo_cifrado):
-    
-    # Determinar la ruta local donde se guardará el archivo cifrado
-    ruta_local_cifrado = os.path.join("Descargas", os.path.basename(ruta_archivo_cifrado))
-    os.makedirs(os.path.dirname(ruta_local_cifrado), exist_ok=True)
-
-    # Copiar el archivo cifrado a la ruta local
-    shutil.copyfile(ruta_archivo_cifrado, ruta_local_cifrado)
-    print(f"Archivo cifrado {os.path.basename(ruta_archivo_cifrado)} guardado localmente.")
-
-    # Leer el archivo cifrado desde la ruta local
-    with open(ruta_local_cifrado, 'rb') as f:
+    # Leer el archivo cifrado
+    with open(ruta_archivo_cifrado, 'rb') as f:
         datos_cifrados = f.read()
+
+    # Obtener la clave AES cifrada de la base de datos
+    clave_aes_cifrada = obtener_clave_aes_cifrada_de_db(user_id, os.path.basename(ruta_archivo_cifrado))
+
+    # Descifrar la clave AES
+    clave_aes = descifrar_clave_aes_con_rsa(user_id, clave_aes_cifrada)
 
     # Descifrar el archivo
     try:
         datos_descifrados = descifrar_con_aes(user_id, datos_cifrados)
 
         # Guardar el archivo descifrado
-        ruta_archivo_descifrado = ruta_local_cifrado.replace('.aes', '')
+        ruta_archivo_descifrado = os.path.join("Descargas", os.path.basename(ruta_archivo_cifrado).replace('.aes', ''))
+        os.makedirs(os.path.dirname(ruta_archivo_descifrado), exist_ok=True)
         with open(ruta_archivo_descifrado, 'wb') as f:
             f.write(datos_descifrados)
+
         print(f"Archivo {os.path.basename(ruta_archivo_cifrado)} descargado y descifrado.")
-
-        # Eliminar el archivo cifrado
-        os.remove(ruta_local_cifrado)
-        print(f"Archivo cifrado {os.path.basename(ruta_archivo_cifrado)} eliminado.")
-
     except Exception as e:
         print(f"Error al descifrar {os.path.basename(ruta_archivo_cifrado)}: {e}")
         
@@ -101,43 +120,37 @@ def descargar_y_descifrar_carpeta(user_id, ruta_carpeta_cifrada):
     nombre_carpeta = os.path.basename(ruta_carpeta_cifrada)
     carpeta_destino = os.path.join("Descargas", nombre_carpeta)
 
-    # Crear la carpeta destino si no existe
-    os.makedirs(carpeta_destino, exist_ok=True)
-
     for raiz, _, archivos in os.walk(ruta_carpeta_cifrada):
         for nombre_archivo in archivos:
             ruta_archivo_cifrado = os.path.join(raiz, nombre_archivo)
-            ruta_relativa_cifrada = os.path.relpath(ruta_archivo_cifrado, ruta_carpeta_cifrada)
-            
-            # Ruta local para guardar el archivo cifrado
-            ruta_local_cifrado = os.path.join(carpeta_destino, ruta_relativa_cifrada)
-            os.makedirs(os.path.dirname(ruta_local_cifrado), exist_ok=True)
 
-            # Copiar el archivo cifrado a la ruta local
-            shutil.copyfile(ruta_archivo_cifrado, ruta_local_cifrado)
-            print(f"Archivo cifrado {nombre_archivo} guardado localmente en {ruta_local_cifrado}.")
+            # Calcular la ruta relativa y la ruta de destino descifrada
+            ruta_relativa_cifrada = os.path.relpath(ruta_archivo_cifrado, ruta_carpeta_cifrada)
+            ruta_archivo_descifrado = os.path.join(carpeta_destino, ruta_relativa_cifrada)
+            ruta_archivo_descifrado = ruta_archivo_descifrado.replace('.aes', '')
+            os.makedirs(os.path.dirname(ruta_archivo_descifrado), exist_ok=True)
 
             # Leer y descifrar el archivo
-            with open(ruta_local_cifrado, 'rb') as f:
+            with open(ruta_archivo_cifrado, 'rb') as f:
                 datos_cifrados = f.read()
 
             try:
                 datos_descifrados = descifrar_con_aes(user_id, datos_cifrados)
 
-                # Guardar el archivo descifrado
-                ruta_archivo_descifrado = ruta_local_cifrado.replace('.aes', '')
                 with open(ruta_archivo_descifrado, 'wb') as f:
                     f.write(datos_descifrados)
+
                 print(f"Archivo {nombre_archivo} descargado y descifrado en {ruta_archivo_descifrado}.")
-
-                # Eliminar el archivo cifrado
-                os.remove(ruta_local_cifrado)
-                print(f"Archivo cifrado {nombre_archivo} eliminado de {ruta_local_cifrado}.")
-
             except Exception as e:
                 print(f"Error al descifrar {nombre_archivo}: {e}")
-
-
+                
+def guardar_archivo_y_clave_en_db(user_id, nombre_archivo, clave_aes_cifrada):
+    conn = sqlite3.connect('usuarios2.db')
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO archivos (user_id, nombre_archivo, clave_AES_cifrada) VALUES (?, ?, ?)',
+                   (user_id, nombre_archivo, clave_aes_cifrada))
+    conn.commit()
+    conn.close()
 
 # Ciframos el archivo y lo subimos
 def subir_archivo():
@@ -145,12 +158,7 @@ def subir_archivo():
     with open('session_data.json', 'r') as file:
         session_data = json.load(file)
     user_id = session_data.get('user_uuid')
-
-    # Carpeta de destino en el servidor
-    carpeta_destino = f'Servidor/{user_id}'
-    if not os.path.exists(carpeta_destino):
-        os.makedirs(carpeta_destino)
-
+    
     # Solicitar al usuario que seleccione los archivos
     root = tk.Tk()
     root.withdraw()
@@ -164,20 +172,16 @@ def subir_archivo():
         print("No se seleccionó ningún archivo.")
         return
 
-    # Cifrar y subir cada archivo
     for archivo in archivos:
         with open(archivo, 'rb') as f:
             datos_archivo = f.read()
 
-        nonce, tag, datos_cifrados = cifrar_con_aes(user_id, datos_archivo)
+        # Cifrar el archivo con una clave AES aleatoria y obtener la clave AES cifrada con RSA
+        nonce, tag, datos_cifrados, clave_aes_cifrada = cifrar_con_aes(user_id, datos_archivo)
 
-        # Guardar el archivo cifrado en el servidor
-        archivo_cifrado_nombre = os.path.basename(archivo) + '.aes'
-        ruta_archivo_cifrado = os.path.join(carpeta_destino, archivo_cifrado_nombre)
-        with open(ruta_archivo_cifrado, 'wb') as f:
-            f.write(nonce)
-            f.write(tag)
-            f.write(datos_cifrados)
+        # Guardar el archivo cifrado y la clave cifrada en la base de datos
+        nombre_archivo_cifrado = os.path.basename(archivo) + '.aes'
+        guardar_archivo_y_clave_en_db(user_id, nombre_archivo_cifrado, clave_aes_cifrada)
 
     print(f"{len(archivos)} archivo(s) subido(s) y cifrado(s) con éxito.")
 
