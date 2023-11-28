@@ -67,8 +67,17 @@ def descargar_y_descifrar_archivo():
             print(f"Índice {idx + 1} no válido.")
             
 def descargar_y_descifrar_archivo_individual(user_id, ruta_archivo_cifrado):
-    # Leer el archivo cifrado
-    with open(ruta_archivo_cifrado, 'rb') as f:
+    
+    # Determinar la ruta local donde se guardará el archivo cifrado
+    ruta_local_cifrado = os.path.join("Descargas", os.path.basename(ruta_archivo_cifrado))
+    os.makedirs(os.path.dirname(ruta_local_cifrado), exist_ok=True)
+
+    # Copiar el archivo cifrado a la ruta local
+    shutil.copyfile(ruta_archivo_cifrado, ruta_local_cifrado)
+    print(f"Archivo cifrado {os.path.basename(ruta_archivo_cifrado)} guardado localmente.")
+
+    # Leer el archivo cifrado desde la ruta local
+    with open(ruta_local_cifrado, 'rb') as f:
         datos_cifrados = f.read()
 
     # Descifrar el archivo
@@ -76,12 +85,15 @@ def descargar_y_descifrar_archivo_individual(user_id, ruta_archivo_cifrado):
         datos_descifrados = descifrar_con_aes(user_id, datos_cifrados)
 
         # Guardar el archivo descifrado
-        ruta_archivo_descifrado = os.path.join("Descargas", os.path.basename(ruta_archivo_cifrado).replace('.aes', ''))
-        os.makedirs(os.path.dirname(ruta_archivo_descifrado), exist_ok=True)
+        ruta_archivo_descifrado = ruta_local_cifrado.replace('.aes', '')
         with open(ruta_archivo_descifrado, 'wb') as f:
             f.write(datos_descifrados)
-
         print(f"Archivo {os.path.basename(ruta_archivo_cifrado)} descargado y descifrado.")
+
+        # Eliminar el archivo cifrado
+        os.remove(ruta_local_cifrado)
+        print(f"Archivo cifrado {os.path.basename(ruta_archivo_cifrado)} eliminado.")
+
     except Exception as e:
         print(f"Error al descifrar {os.path.basename(ruta_archivo_cifrado)}: {e}")
         
@@ -89,27 +101,39 @@ def descargar_y_descifrar_carpeta(user_id, ruta_carpeta_cifrada):
     nombre_carpeta = os.path.basename(ruta_carpeta_cifrada)
     carpeta_destino = os.path.join("Descargas", nombre_carpeta)
 
+    # Crear la carpeta destino si no existe
+    os.makedirs(carpeta_destino, exist_ok=True)
+
     for raiz, _, archivos in os.walk(ruta_carpeta_cifrada):
         for nombre_archivo in archivos:
             ruta_archivo_cifrado = os.path.join(raiz, nombre_archivo)
-
-            # Calcular la ruta relativa y la ruta de destino descifrada
             ruta_relativa_cifrada = os.path.relpath(ruta_archivo_cifrado, ruta_carpeta_cifrada)
-            ruta_archivo_descifrado = os.path.join(carpeta_destino, ruta_relativa_cifrada)
-            ruta_archivo_descifrado = ruta_archivo_descifrado.replace('.aes', '')
-            os.makedirs(os.path.dirname(ruta_archivo_descifrado), exist_ok=True)
+            
+            # Ruta local para guardar el archivo cifrado
+            ruta_local_cifrado = os.path.join(carpeta_destino, ruta_relativa_cifrada)
+            os.makedirs(os.path.dirname(ruta_local_cifrado), exist_ok=True)
+
+            # Copiar el archivo cifrado a la ruta local
+            shutil.copyfile(ruta_archivo_cifrado, ruta_local_cifrado)
+            print(f"Archivo cifrado {nombre_archivo} guardado localmente en {ruta_local_cifrado}.")
 
             # Leer y descifrar el archivo
-            with open(ruta_archivo_cifrado, 'rb') as f:
+            with open(ruta_local_cifrado, 'rb') as f:
                 datos_cifrados = f.read()
 
             try:
                 datos_descifrados = descifrar_con_aes(user_id, datos_cifrados)
 
+                # Guardar el archivo descifrado
+                ruta_archivo_descifrado = ruta_local_cifrado.replace('.aes', '')
                 with open(ruta_archivo_descifrado, 'wb') as f:
                     f.write(datos_descifrados)
-
                 print(f"Archivo {nombre_archivo} descargado y descifrado en {ruta_archivo_descifrado}.")
+
+                # Eliminar el archivo cifrado
+                os.remove(ruta_local_cifrado)
+                print(f"Archivo cifrado {nombre_archivo} eliminado de {ruta_local_cifrado}.")
+
             except Exception as e:
                 print(f"Error al descifrar {nombre_archivo}: {e}")
 

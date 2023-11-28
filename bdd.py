@@ -52,6 +52,28 @@ def cifrar_con_aes(user_id, datos):
     # Devolver los datos cifrados junto con el nonce y el tag
     return cipher_aes.nonce, tag, datos_cifrados
 
+'''
+def cifrar_con_aes(user_id, datos):
+# Generar una clave AES aleatoria y un nonce
+clave_aes = os.urandom(32)  # 256 bits para AES
+cipher_aes = AES.new(clave_aes, AES.MODE_EAX)
+datos_cifrados, tag = cipher_aes.encrypt_and_digest(datos)
+
+# Obtener la clave pública RSA del usuario desde la base de datos
+conn = sqlite3.connect('usuarios2.db')
+cursor = conn.cursor()
+cursor.execute('SELECT public_key FROM usuarios WHERE ID=?', (user_id,))
+clave_publica_rsa = cursor.fetchone()[0]
+conn.close()
+
+# Cifrar la clave AES con la clave pública RSA
+clave_publica = RSA.import_key(clave_publica_rsa)
+cipher_rsa = PKCS1_OAEP.new(clave_publica)
+clave_aes_cifrada = cipher_rsa.encrypt(clave_aes)
+
+# Devolver los datos cifrados, el nonce, el tag y la clave AES cifrada
+return cipher_aes.nonce, tag, datos_cifrados, clave_aes_cifrada
+'''
 
 def descifrar_con_aes(user_id, datos_cifrados):
     # Obtener el hash de la contraseña del usuario desde la base de datos
@@ -73,6 +95,21 @@ def descifrar_con_aes(user_id, datos_cifrados):
     cipher_aes = AES.new(clave_aes, AES.MODE_EAX, nonce)
     datos_descifrados = cipher_aes.decrypt_and_verify(texto_cifrado, tag)
     return datos_descifrados
+'''
+def descifrar_con_aes(user_id, nonce, tag, datos_cifrados, clave_aes_cifrada):
+    # Obtener la clave privada RSA del usuario (esto puede requerir una contraseña)
+    # Aquí necesitas la lógica para obtener la clave privada RSA del usuario
+    clave_privada_rsa = obtener_clave_privada_rsa(user_id)
+
+    # Descifrar la clave AES con la clave privada RSA
+    clave_privada = RSA.import_key(clave_privada_rsa)
+    cipher_rsa = PKCS1_OAEP.new(clave_privada)
+    clave_aes = cipher_rsa.decrypt(clave_aes_cifrada)
+
+    # Descifrar los datos con la clave AES
+    cipher_aes = AES.new(clave_aes, AES.MODE_EAX, nonce)
+    datos_descifrados = cipher_aes.decrypt_and_verify(datos_cifrados, tag)
+    return datos_descifrados'''
 
 def generar_uuid128():
     """
