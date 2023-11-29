@@ -16,6 +16,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
 
 nuevo_uuid = None
+clave_privada_rsa_global = None
 
 # Establece la conexión con una base de datos SQLite y crea una tabla 'usuarios' si no existe.
 conn = sqlite3.connect('usuarios2.db')
@@ -36,7 +37,9 @@ cursor.execute('''
         archivo_id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id TEXT,
         nombre_archivo TEXT,
+        datos BLOB,
         clave_AES_cifrada TEXT,
+        ruta_relativa TEXT,  -- Nueva columna para la ruta relativa
         FOREIGN KEY(user_id) REFERENCES usuarios(ID)
     )
 ''')
@@ -45,8 +48,10 @@ cursor.execute('''
 #Fase 2
 
 def cifrar_con_aes(user_id, datos):
-    # Generar una clave AES aleatoria y un nonce
+    # Generar una clave AES aleatoria
     clave_aes = os.urandom(32)  # 256 bits para AES
+
+    # Cifrar los datos
     cipher_aes = AES.new(clave_aes, AES.MODE_EAX)
     datos_cifrados, tag = cipher_aes.encrypt_and_digest(datos)
 
@@ -65,6 +70,51 @@ def cifrar_con_aes(user_id, datos):
     # Devolver los datos cifrados, el nonce, el tag y la clave AES cifrada
     return cipher_aes.nonce, tag, datos_cifrados, clave_aes_cifrada
 
+
+'''
+def cifrar_con_aes(user_id, datos):
+# Generar una clave AES aleatoria y un nonce
+clave_aes = os.urandom(32)  # 256 bits para AES
+cipher_aes = AES.new(clave_aes, AES.MODE_EAX)
+datos_cifrados, tag = cipher_aes.encrypt_and_digest(datos)
+
+# Obtener la clave pública RSA del usuario desde la base de datos
+conn = sqlite3.connect('usuarios2.db')
+cursor = conn.cursor()
+cursor.execute('SELECT public_key FROM usuarios WHERE ID=?', (user_id,))
+clave_publica_rsa = cursor.fetchone()[0]
+conn.close()
+
+# Cifrar la clave AES con la clave pública RSA
+clave_publica = RSA.import_key(clave_publica_rsa)
+cipher_rsa = PKCS1_OAEP.new(clave_publica)
+clave_aes_cifrada = cipher_rsa.encrypt(clave_aes)
+
+# Devolver los datos cifrados, el nonce, el tag y la clave AES cifrada
+return cipher_aes.nonce, tag, datos_cifrados, clave_aes_cifrada
+'''
+
+def descifrar_con_aes(datos_cifrados, clave_aes):
+    # Asegúrate de que datos_cifrados es un objeto bytes
+    if not isinstance(datos_cifrados, bytes):
+        raise TypeError("Los datos cifrados deben ser bytes")
+
+    # Extraer nonce, tag y el texto cifrado
+    nonce = datos_cifrados[:16]
+    tag = datos_cifrados[16:32]
+    texto_cifrado = datos_cifrados[32:]
+
+    # Descifrar los datos con la clave AES proporcionada
+    cipher_aes = AES.new(clave_aes, AES.MODE_EAX, nonce)
+    try:
+        datos_descifrados = cipher_aes.decrypt_and_verify(texto_cifrado, tag)
+    except ValueError as e:
+        raise ValueError("La verificación del MAC falló o la clave AES es incorrecta. EXCEPCION: {e}") from e
+
+    return datos_descifrados
+
+
+'''
 def descifrar_con_aes(user_id, nonce, tag, datos_cifrados, clave_aes_cifrada):
     # Obtener la clave privada RSA del usuario (esto puede requerir una contraseña)
     # Aquí necesitas la lógica para obtener la clave privada RSA del usuario
@@ -78,7 +128,7 @@ def descifrar_con_aes(user_id, nonce, tag, datos_cifrados, clave_aes_cifrada):
     # Descifrar los datos con la clave AES
     cipher_aes = AES.new(clave_aes, AES.MODE_EAX, nonce)
     datos_descifrados = cipher_aes.decrypt_and_verify(datos_cifrados, tag)
-    return datos_descifrados
+    return datos_descifrados'''
 
 def generar_uuid128():
     """
@@ -137,6 +187,7 @@ def cifrar_clave_privada(clave_privada, password):
     ciphertext, tag = cipher.encrypt_and_digest(clave_privada)
     encrypted_private_key = b64encode(ciphertext + cipher.nonce + tag + private_key_salt).decode('utf-8')
     return encrypted_private_key
+
 
 def seleccion():
     """
@@ -199,6 +250,7 @@ def iniciar_sesion():
     Adicionalmente, realiza una verificación de dos pasos utilizando un "reto" cifrado con la clave privada del usuario,
     que debe ser descifrado correctamente para completar la autenticación.
     """
+    global clave_privada_rsa_global
     username = input('Ingresa tu nombre de usuario: ')
     password = input('Ingresa tu contraseña: ')
     # Obtener el hash de la contraseña y la salt de la base de datos
@@ -266,6 +318,7 @@ def iniciar_sesion():
             key = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
             cipher_aes = AES.new(key, AES.MODE_EAX, nonce=nonce)
             private_key_decrypted = cipher_aes.decrypt_and_verify(ciphertext, tag)
+            clave_privada_rsa_global = private_key_decrypted
 
             # Desciframos el "reto" (también en el lado del cliente en la realidad).
             private_key = RSA.import_key(private_key_decrypted)
