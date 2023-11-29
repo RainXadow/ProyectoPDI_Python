@@ -234,23 +234,17 @@ def registrar_usuario():
                    (nuevo_uuid, username, salt_hash_combined, public_key.decode('utf-8')))
     conn.commit()
     print('USUARIO REGISTRADO CON ÉXITO.\n')
-    # Crear una carpeta con el nombre del usuario
-    user_folder = f'Servidor/{nuevo_uuid}'
-    if not os.path.exists(user_folder):
-        os.makedirs(user_folder)
-        print(f'CARPETA DE USUARIO "{nuevo_uuid}" CREADA CON ÉXITO.\n')
-        return 3
-    else:
-        print(f'La CARPETA DE USUARIO "{nuevo_uuid}" YA EXISTE.\n')
-        return 3
+    return 3
 
-def iniciar_sesion():
-    """
+"""
     Permite a un usuario iniciar sesión verificando su nombre de usuario y contraseña.
     Adicionalmente, realiza una verificación de dos pasos utilizando un "reto" cifrado con la clave privada del usuario,
     que debe ser descifrado correctamente para completar la autenticación.
-    """
+"""
+def iniciar_sesion():
+    global nombre_usuario_global
     global clave_privada_rsa_global
+    
     username = input('Ingresa tu nombre de usuario: ')
     password = input('Ingresa tu contraseña: ')
     # Obtener el hash de la contraseña y la salt de la base de datos
@@ -258,6 +252,7 @@ def iniciar_sesion():
     usuario = cursor.fetchone()
 
     if usuario:
+        nombre_usuario_global = username
         
         salt_hash_combined = base64.b64decode(usuario[2])  # Asegúrate de que el índice sea correcto
         salt = salt_hash_combined[:16]  # Los primeros 16 bytes son la salt
@@ -267,13 +262,13 @@ def iniciar_sesion():
         password_verificacion = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
         if password_verificacion != stored_hash:
             print('\nNOMBRE DE USUARIO O CONTRASEÑA INCORRECTOS. \n')
-            return 2
+            return False
 
     if usuario:
         file_path = seleccionar_archivo_clave_privada()
         if not file_path:
             print("\nNo se seleccionó ningún archivo.\n")
-            return 3
+            return False
 
         with open(file_path, 'r') as file:
             encrypted_private_key = file.read()
@@ -332,16 +327,16 @@ def iniciar_sesion():
                 with open('session_data.json', 'w') as f:
                     data = {'user_uuid': usuario[0]}
                     json.dump(data, f)
-                return 1
+                return True
             else:
                 print('\nFALLO EN LA VERIFICACION DE LA CLAVE PRIVADA.\n')
-                return 3
+                return False
         except Exception as e:
             print(f'\nERROR: {e}\n')
-            return 3
+            return False
     else:
         print('\nNOMBRE DE USUARIO O CONTRASEÑA INCORRECTOS. \n')
-        return 2
+        return False
 
 # Inicio del programa
 if __name__ == "__main__":

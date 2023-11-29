@@ -68,8 +68,7 @@ def listar_directorios_usuario():
 def obtener_datos_archivo(user_id, nombre_archivo):
     conn = sqlite3.connect(DATABASE_FILE)
     cursor = conn.cursor()
-    cursor.execute('SELECT datos, clave_AES_cifrada FROM archivos WHERE user_id=? AND nombre_archivo=?', 
-                   (user_id, nombre_archivo))
+    cursor.execute('SELECT datos, clave_AES_cifrada FROM archivos WHERE user_id=? AND nombre_archivo=?', (user_id, nombre_archivo))
     resultado = cursor.fetchone()
     conn.close()
     if resultado:
@@ -77,16 +76,6 @@ def obtener_datos_archivo(user_id, nombre_archivo):
         return datos, clave_aes_cifrada
     else:
         raise FileNotFoundError(f"No se encontraron datos para el archivo {nombre_archivo}")
-
-
-def obtener_datos_archivo(user_id, nombre_archivo):
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    cursor.execute('SELECT datos, clave_AES_cifrada FROM archivos WHERE user_id=? AND nombre_archivo=?', 
-                   (user_id, nombre_archivo))
-    datos, clave_aes_cifrada = cursor.fetchone()
-    conn.close()
-    return datos, clave_aes_cifrada
 
 def obtener_clave_aes_cifrada_de_db(user_id, nombre_archivo):
     conn = sqlite3.connect(DATABASE_FILE)
@@ -160,15 +149,38 @@ def cifrar_y_guardar_carpeta_en_db(user_id, carpeta_seleccionada, ruta_directori
             cifrar_y_guardar_archivo_en_db(user_id, ruta_archivo, ruta_directorio_destino + nombre_carpeta + '/' + ruta_relativa)
 
     crear_archivo_o_carpeta_en_db(user_id, "/" + nombre_carpeta, ruta_directorio_destino + nombre_carpeta + '/', True)
+    
+def descargar_y_descifrar_archivo_individual(user_id, nombre_archivo, ruta_descarga):
+    datos, clave_aes_cifrada = obtener_datos_archivo(user_id, nombre_archivo)
+
+    # Descifrar la clave AES
+    clave_aes = descifrar_clave_aes_con_rsa(clave_aes_cifrada)
+
+    # Descifrar los datos del archivo
+    try:
+        datos_descifrados = descifrar_con_aes(datos, clave_aes)
+        nombre_archivo_descifrado = nombre_archivo.replace('.aes', '')
+        ruta_archivo_descifrado = os.path.join(ruta_descarga, nombre_archivo_descifrado)
+
+        with open(ruta_archivo_descifrado, 'wb') as f:
+            f.write(datos_descifrados)
+        print(f"Archivo {nombre_archivo_descifrado} descargado y descifrado.")
+    except Exception as e:
+        print(f"Error al descifrar {nombre_archivo}: {e}")
+        
+def descargar_y_descifrar_carpeta(user_id, ruta_carpeta, ruta_descarga):
+    # Obtener todos los archivos dentro de la carpeta
+    archivos_en_carpeta = [archivo for archivo in listar_archivos_usuario(user_id) if archivo.startswith(ruta_carpeta)]
+    for archivo in archivos_en_carpeta:
+        descargar_y_descifrar_archivo_individual(user_id, archivo, os.path.join(ruta_descarga, ruta_carpeta))
 
 
 
 # Descargamos y desciframos
 def descargar_y_descifrar_archivo():
-
-    with open(SESSION_DATA_FILE, 'r') as file:
-        session_data = json.load(file)
-    user_id = session_data.get('user_uuid')
+    user_id = obtener_user_id()
+    ruta_descarga = os.path.join(str(bdd.nombre_usuario_global), "Descargas")
+    os.makedirs(ruta_descarga, exist_ok=True)
 
     elementos = listar_archivos_usuario(user_id)
     if not elementos:
@@ -184,34 +196,15 @@ def descargar_y_descifrar_archivo():
 
     for idx in indices_seleccionados:
         if 0 <= idx < len(elementos):
-            nombre_archivo = elementos[idx]
-            descargar_y_descifrar_archivo_individual(user_id, nombre_archivo)
+            nombre_elemento = elementos[idx]
+            if nombre_elemento.endswith('.aes'):
+                # Es un archivo
+                descargar_y_descifrar_archivo_individual(user_id, nombre_elemento, ruta_descarga)
+            else:
+                # Es una carpeta
+                descargar_y_descifrar_carpeta(user_id, nombre_elemento, ruta_descarga)
         else:
             print(f"Índice {idx + 1} no válido.")
-
-
-            
-def descargar_y_descifrar_archivo_individual(user_id, nombre_archivo):
-
-    datos, clave_aes_cifrada = obtener_datos_archivo(user_id, nombre_archivo)
-
-    # Descifrar la clave AES
-    clave_aes = descifrar_clave_aes_con_rsa(clave_aes_cifrada)
-
-    # Descifrar los datos del archivo
-    try:
-        datos_descifrados = descifrar_con_aes(datos, clave_aes)
-
-        nombre_archivo_descifrado = nombre_archivo.replace('.aes', '')
-
-        # Guardar el archivo descifrado localmente
-        ruta_archivo_descifrado = os.path.join("Descargas", nombre_archivo_descifrado)
-        os.makedirs(os.path.dirname(ruta_archivo_descifrado), exist_ok=True)
-        with open(ruta_archivo_descifrado, 'wb') as f:
-            f.write(datos_descifrados)
-        print(f"Archivo {nombre_archivo_descifrado} descargado y descifrado.")
-    except Exception as e:
-        print(f"Error al descifrar {nombre_archivo}: {e}")
 
 
 # Ciframos el archivo y lo subimos
@@ -280,56 +273,6 @@ def obtener_user_id():
         session_data = json.load(file)
     return session_data.get('user_uuid')
 
-
-
-'''
-def subir_carpeta():
-    """
-    Solicita al usuario que seleccione una carpeta y la copia a una carpeta
-    en el servidor basada en el user_id obtenido de session_data.json.
-    """
-    # Cargar el user_id del archivo session_data.json
-    with open(SESSION_DATA_FILE, 'r') as file:
-        session_data = json.load(file)
-    user_id = session_data.get('user_uuid')
-
-    # Carpeta base de destino en el servidor
-    carpeta_base_destino = os.path.normpath(f'Servidor/{user_id}')
-
-    # Solicitar al usuario que seleccione la carpeta
-    root = tk.Tk()
-    root.withdraw()
-    carpeta_seleccionada = filedialog.askdirectory()
-    root.destroy()
-
-    # Verificar que el usuario haya seleccionado una carpeta
-    if not carpeta_seleccionada:
-        print("No se seleccionó ninguna carpeta.")
-        return
-
-    carpeta_seleccionada = os.path.normpath(carpeta_seleccionada)
-    nombre_carpeta_origen = os.path.basename(carpeta_seleccionada)
-    carpeta_destino = os.path.join(carpeta_base_destino, nombre_carpeta_origen)
-
-    if not os.path.exists(carpeta_destino):
-        os.makedirs(carpeta_destino)
-
-    for dirpath, dirnames, filenames in os.walk(carpeta_seleccionada):
-        destino = os.path.join(carpeta_destino, os.path.relpath(dirpath, carpeta_seleccionada))
-        destino = os.path.normpath(destino)
-
-        if not os.path.exists(destino):
-            os.makedirs(destino)
-
-        for filename in filenames:
-            archivo_origen = os.path.join(dirpath, filename)
-            archivo_destino = os.path.join(destino, filename)
-
-            print(f"Copiando de {archivo_origen} a {archivo_destino}")  # Agregar impresión para depuración
-            shutil.copy(archivo_origen, archivo_destino)
-            
-'''
-
 def gestionar_drive():
     while True:
         print("\nMenú de opciones:")
@@ -365,6 +308,7 @@ def menu_principal():
                 gestionar_drive()
             else:
                 print("Autenticación fallida.")
+                continue
         if opcion == "2":
             registrar_usuario()
         elif opcion == "3":

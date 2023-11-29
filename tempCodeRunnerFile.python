@@ -1,0 +1,31 @@
+import unittest
+import os
+import proyectoPDI
+
+class TestProyectoPDI(unittest.TestCase):
+
+    def setUp(self):
+        self.user_id = 1
+        self.carpeta_seleccionada = "/ruta/a/la/carpeta"
+        self.ruta_directorio_destino = "/ruta/al/directorio/destino"
+
+    def test_cifrar_y_guardar_carpeta_en_db(self):
+        # Asegurarse de que la carpeta seleccionada existe
+        self.assertTrue(os.path.isdir(self.carpeta_seleccionada))
+
+        # Llamar a la función que se está probando
+        proyectoPDI.cifrar_y_guardar_carpeta_en_db(self.user_id, self.carpeta_seleccionada, self.ruta_directorio_destino)
+
+        # Comprobar que se ha creado la carpeta en el directorio destino
+        self.assertTrue(os.path.isdir(self.ruta_directorio_destino + os.path.basename(self.carpeta_seleccionada)))
+
+        # Comprobar que todos los archivos de la carpeta seleccionada se han cifrado y guardado en la base de datos
+        for raiz, _, archivos in os.walk(self.carpeta_seleccionada):
+            for nombre_archivo in archivos:
+                ruta_archivo = os.path.join(raiz, nombre_archivo)
+                ruta_relativa = os.path.relpath(ruta_archivo, self.carpeta_seleccionada)
+                # Aquí debería comprobarse que el archivo cifrado existe en la base de datos
+                # Esto dependerá de cómo esté implementada la función `cifrar_y_guardar_archivo_en_db`
+
+if __name__ == "__main__":
+    unittest.main()
