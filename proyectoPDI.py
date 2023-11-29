@@ -174,10 +174,23 @@ def obtener_datos_archivo(user_id, nombre_archivo):
 
 # Ciframos el archivo y lo subimos
 def subir_archivo():
+    user_id = obtener_user_id()
 
-    with open(SESSION_DATA_FILE, 'r') as file:
-        session_data = json.load(file)
-    user_id = session_data.get('user_uuid')
+    # Lista de directorios existentes
+    print("Directorios disponibles:")
+    carpetas_disponibles = listar_directorios_usuario(user_id)
+    for idx, carpeta in enumerate(carpetas_disponibles):
+        print(f"{idx + 1}. {carpeta}")
+
+    # Elegir directorio de destino
+    eleccion_directorio = input("Seleccione el número del directorio destino (deje en blanco para raíz): ")
+    ruta_directorio_destino = ""
+    if eleccion_directorio.strip().isdigit():
+        idx_directorio = int(eleccion_directorio.strip()) - 1
+        if 0 <= idx_directorio < len(carpetas_disponibles):
+            ruta_directorio_destino = carpetas_disponibles[idx_directorio] + "/"
+    else:
+        ruta_directorio_destino = "./"
 
     root = tk.Tk()
     root.withdraw()
@@ -194,16 +207,28 @@ def subir_archivo():
 
         nonce, tag, datos_cifrados, clave_aes_cifrada = cifrar_con_aes(user_id, datos_archivo)
         nombre_archivo_cifrado = os.path.basename(archivo) + '.aes'
-        guardar_archivo_en_db(user_id, nombre_archivo_cifrado, nonce, tag, datos_cifrados, clave_aes_cifrada)
+        guardar_archivo_en_db(user_id, nombre_archivo_cifrado, nonce, tag, datos_cifrados, clave_aes_cifrada, ruta_directorio_destino)
 
     print(f"{len(archivos)} archivo(s) subido(s) con éxito.")
-
-
-
+    
 def subir_carpeta():
-    with open(SESSION_DATA_FILE, 'r') as file:
-        session_data = json.load(file)
-    user_id = session_data.get('user_uuid')
+    user_id = obtener_user_id()
+
+    # Lista de directorios existentes
+    print("Directorios disponibles:")
+    carpetas_disponibles = listar_directorios_usuario(user_id)
+    for idx, carpeta in enumerate(carpetas_disponibles):
+        print(f"{idx + 1}. {carpeta}")
+
+    # Elegir directorio de destino
+    eleccion_directorio = input("Seleccione el número del directorio destino (deje en blanco para raíz): ")
+    ruta_directorio_destino = ""
+    if eleccion_directorio.strip().isdigit():
+        idx_directorio = int(eleccion_directorio.strip()) - 1
+        if 0 <= idx_directorio < len(carpetas_disponibles):
+            ruta_directorio_destino = carpetas_disponibles[idx_directorio] + "/"
+    else:
+        ruta_directorio_destino = "./"
 
     root = tk.Tk()
     root.withdraw()
@@ -213,7 +238,11 @@ def subir_carpeta():
     if not carpeta_seleccionada:
         print("No se seleccionó una carpeta.")
         return
+    
+    # Obtener el nombre de la carpeta y formatearlo como directorio
+    nombre_carpeta = os.path.basename(carpeta_seleccionada)
 
+    # Cifrar y subir carpeta
     for raiz, _, archivos in os.walk(carpeta_seleccionada):
         for nombre_archivo in archivos:
             ruta_archivo = os.path.join(raiz, nombre_archivo)
@@ -224,10 +253,14 @@ def subir_carpeta():
 
             nonce, tag, datos_cifrados, clave_aes_cifrada = cifrar_con_aes(user_id, datos_archivo)
 
-            nombre_archivo_cifrado = ruta_relativa.replace(os.sep, '/') + '.aes'  # Reemplaza separadores de ruta por '/'
-            guardar_archivo_en_db(user_id, nombre_archivo_cifrado, nonce, tag, datos_cifrados, clave_aes_cifrada, ruta_relativa)
+            # Construir el nombre del archivo cifrado basado en la ruta relativa y la selección del directorio
+            nombre_archivo_cifrado = ruta_relativa.replace(os.sep, '/') + '.aes'
+            guardar_archivo_en_db(user_id, nombre_archivo_cifrado, nonce, tag, datos_cifrados, clave_aes_cifrada, ruta_directorio_destino + nombre_carpeta)
+
+    crear_archivo_o_carpeta_en_db(user_id, "/" + nombre_carpeta, ruta_directorio_destino + nombre_carpeta, True)
 
     print(f"Carpeta '{os.path.basename(carpeta_seleccionada)}' subida y cifrada con éxito.")
+
 
 
 def crear_archivo_o_carpeta():
