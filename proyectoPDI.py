@@ -32,6 +32,15 @@ def listar_archivos_usuario(user_id):
     conn.close()
     return archivos
 
+def listar_directorios_usuario(user_id):
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    # Seleccionar solo las entradas que corresponden a directorios
+    cursor.execute("SELECT DISTINCT ruta_relativa FROM archivos WHERE user_id=? AND ruta_relativa != '' AND nombre_archivo NOT LIKE '%.aes'", (user_id,))
+    carpetas = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return carpetas
+
 
 def obtener_datos_archivo(user_id, nombre_archivo):
     conn = sqlite3.connect(DATABASE_FILE)
@@ -120,7 +129,7 @@ def descargar_y_descifrar_archivo_individual(user_id, nombre_archivo):
         print(f"Error al descifrar {nombre_archivo}: {e}")
 
                 
-def guardar_archivo_en_db(user_id, nombre_archivo, nonce, tag, datos_cifrados, clave_aes_cifrada, ruta_relativa="."):
+def guardar_archivo_en_db(user_id, nombre_archivo, nonce, tag, datos_cifrados, clave_aes_cifrada, ruta_relativa="./"):
     conn = sqlite3.connect(DATABASE_FILE)
     cursor = conn.cursor()
     datos_completos = nonce + tag + datos_cifrados
@@ -130,6 +139,21 @@ def guardar_archivo_en_db(user_id, nombre_archivo, nonce, tag, datos_cifrados, c
         (user_id, nombre_archivo, datos_completos, clave_aes_cifrada, ruta_relativa))
     conn.commit()
     conn.close()
+
+def crear_archivo_o_carpeta_en_db(user_id, nombre_archivo, ruta_relativa, es_carpeta, nonce=None, tag=None, datos_cifrados=None, clave_aes_cifrada=None):
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+
+    if es_carpeta:
+        cursor.execute('INSERT INTO archivos (user_id, nombre_archivo, ruta_relativa) VALUES (?, ?, ?)', (user_id, nombre_archivo, ruta_relativa))
+    else:
+        datos_completos = nonce + tag + datos_cifrados if datos_cifrados is not None else b''
+        cursor.execute('INSERT INTO archivos (user_id, nombre_archivo, datos, clave_AES_cifrada, ruta_relativa) VALUES (?, ?, ?, ?, ?)', 
+                       (user_id, nombre_archivo, datos_completos, clave_aes_cifrada, ruta_relativa))
+
+    conn.commit()
+    conn.close()
+
 
 
 
@@ -206,32 +230,37 @@ def subir_carpeta():
     print(f"Carpeta '{os.path.basename(carpeta_seleccionada)}' subida y cifrada con éxito.")
 
 
-    
-def crear_archivo_o_carpeta_en_db(user_id, nombre, es_carpeta):
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-
-    # Si es una carpeta, no almacenamos datos ni clave cifrada.
-    if es_carpeta:
-        cursor.execute('INSERT INTO archivos (user_id, nombre_archivo) VALUES (?, ?)', (user_id, nombre))
-    else:
-        # Si es un archivo, podrías querer almacenar un archivo vacío o gestionar esto de otra manera.
-        datos_vacios = b''  # Representa un archivo vacío
-        clave_aes_cifrada_vacia = ''  # No hay clave AES para un archivo vacío
-        cursor.execute('INSERT INTO archivos (user_id, nombre_archivo, datos, clave_AES_cifrada) VALUES (?, ?, ?, ?)', 
-                       (user_id, nombre, datos_vacios, clave_aes_cifrada_vacia))
-
-    conn.commit()
-    conn.close()
-
-
 def crear_archivo_o_carpeta():
     user_id = obtener_user_id()
+
+    # Lista de directorios existentes
+    print("Directorios disponibles:")
+    carpetas_disponibles = listar_directorios_usuario(user_id)
+    for idx, carpeta in enumerate(carpetas_disponibles):
+        print(f"{idx + 1}. {carpeta}")
+
+    # Elegir directorio
+    eleccion_directorio = input("Seleccione el número del directorio (deje en blanco para raíz): ")
+    ruta_directorio = ""
+    if eleccion_directorio.strip().isdigit():
+        idx_directorio = int(eleccion_directorio.strip()) - 1
+        if 0 <= idx_directorio < len(carpetas_disponibles):
+            ruta_directorio = carpetas_disponibles[idx_directorio] + "/"
+    else:
+        ruta_directorio += "./"
+
     nombre = input("Ingrese el nombre del archivo/carpeta: ")
     es_carpeta = input("Es una carpeta? (s/n): ").lower() == 's'
 
-    crear_archivo_o_carpeta_en_db(user_id, nombre, es_carpeta)
+    if es_carpeta:
+        crear_archivo_o_carpeta_en_db(user_id, ruta_directorio + nombre, ruta_directorio + nombre, True)
+    else:
+        # Cifrar el archivo vacío
+        nonce, tag, datos_cifrados, clave_aes_cifrada = cifrar_con_aes(user_id, b'')
+        crear_archivo_o_carpeta_en_db(user_id, nombre + '.aes', ruta_directorio, False, nonce, tag, datos_cifrados, clave_aes_cifrada)
+
     print(f"{'Carpeta' if es_carpeta else 'Archivo'} '{nombre}' creado con éxito.")
+
 
 def obtener_user_id():
     with open(SESSION_DATA_FILE, 'r') as file:
