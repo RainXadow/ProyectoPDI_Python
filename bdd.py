@@ -100,9 +100,9 @@ def descifrar_con_aes(datos_cifrados, clave_aes):
         raise TypeError("Los datos cifrados deben ser bytes")
 
     # Extraer nonce, tag y el texto cifrado
-    nonce = datos_cifrados[:16]
-    tag = datos_cifrados[16:32]
-    texto_cifrado = datos_cifrados[32:]
+    nonce = datos_cifrados[:16] #primeros 16 bytes del texto cifrado
+    tag = datos_cifrados[16:32] #siguientes 16 bytes del texto cifrado
+    texto_cifrado = datos_cifrados[32:] #el resto del texto cifrado
 
     # Descifrar los datos con la clave AES proporcionada
     cipher_aes = AES.new(clave_aes, AES.MODE_EAX, nonce)

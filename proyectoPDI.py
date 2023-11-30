@@ -26,9 +26,9 @@ def autenticar_usuario():
     return False
 
 """
-Función: seleccionar_directorio_destino
-Esta función permite al usuario seleccionar un directorio de destino para la operación de archivo.
-Devuelve la ruta relativa del directorio seleccionado. Si no se selecciona ningún directorio, se devuelve la raíz.
+    Función: seleccionar_directorio_destino
+    Esta función permite al usuario seleccionar un directorio de destino para la operación de archivo.
+    Devuelve la ruta relativa del directorio seleccionado. Si no se selecciona ningún directorio, se devuelve la raíz.
 """
 def seleccionar_directorio_destino():
     # Obtiene la lista de directorios disponibles para el usuario
@@ -67,12 +67,14 @@ def listar_archivos_usuario(user_id):
             CASE
                 WHEN nombre_archivo LIKE "%.aes" THEN nombre_archivo
                 WHEN nombre_archivo LIKE "/%" OR nombre_archivo LIKE "./%" THEN ruta_relativa
-            END
+            END as nombre_o_ruta,
+            nombre_archivo,
+            ruta_relativa
         FROM archivos
         WHERE user_id=?
     ''', (user_id,))
-    # Obtiene los resultados de la consulta y los guarda en una lista
-    archivos = [row[0] for row in cursor.fetchall()]
+    # Obtiene los resultados de la consulta y los guarda en una lista de diccionarios
+    archivos = [{'nombre_o_ruta': row[0], 'nombre_archivo': row[1], 'ruta_relativa': row[2]} for row in cursor.fetchall()]
     conn.close()
     return archivos
 
@@ -116,9 +118,9 @@ def obtener_detalles_archivos_usuario(user_id):
     return detalles_archivos
 
 """
-Función: listar_directorios_usuario
-Esta función devuelve una lista de los directorios del usuario.
-Los directorios se identifican por su ruta relativa.
+    Función: listar_directorios_usuario
+    Esta función devuelve una lista de los directorios del usuario.
+    Los directorios se identifican por su ruta relativa.
 """
 def listar_directorios_usuario():
     # Obtiene el ID del usuario actual
@@ -141,9 +143,9 @@ def listar_directorios_usuario():
     return carpetas
 
 """
-Función: obtener_datos_archivo
-Esta función devuelve los datos y la clave AES cifrada de un archivo específico perteneciente al usuario.
-Si no se encuentran datos para el archivo, se lanza una excepción FileNotFoundError.
+    Función: obtener_datos_archivo
+    Esta función devuelve los datos y la clave AES cifrada de un archivo específico perteneciente al usuario.
+    Si no se encuentran datos para el archivo, se lanza una excepción FileNotFoundError.
 """
 def obtener_datos_archivo(user_id, nombre_archivo):
     # Conecta con la base de datos
@@ -169,13 +171,13 @@ def obtener_datos_archivo(user_id, nombre_archivo):
 
 
 """
-Función: obtener_clave_aes_cifrada_de_db
-Esta función recupera la clave AES cifrada de un archivo específico de la base de datos.
-Argumentos:
-    user_id: El ID del usuario que posee el archivo.
-    nombre_archivo: El nombre del archivo del que se va a recuperar la clave.
-Devuelve:
-    La clave AES cifrada del archivo.
+    Función: obtener_clave_aes_cifrada_de_db
+    Esta función recupera la clave AES cifrada de un archivo específico de la base de datos.
+    Argumentos:
+        user_id: El ID del usuario que posee el archivo.
+        nombre_archivo: El nombre del archivo del que se va a recuperar la clave.
+    Devuelve:
+        La clave AES cifrada del archivo.
 """
 def obtener_clave_aes_cifrada_de_db(user_id, nombre_archivo):
     # Conecta con la base de datos
@@ -195,12 +197,12 @@ def obtener_clave_aes_cifrada_de_db(user_id, nombre_archivo):
     return clave_aes_cifrada
 
 """
-Función: descifrar_clave_aes_con_rsa
-Esta función descifra una clave AES cifrada utilizando una clave privada RSA.
-Argumentos:
-    clave_aes_cifrada: La clave AES cifrada que se va a descifrar.
-Devuelve:
-    La clave AES descifrada.
+    Función: descifrar_clave_aes_con_rsa
+    Esta función descifra una clave AES cifrada utilizando una clave privada RSA.
+    Argumentos:
+        clave_aes_cifrada: La clave AES cifrada que se va a descifrar.
+    Devuelve:
+        La clave AES descifrada.
 """
 def descifrar_clave_aes_con_rsa(clave_aes_cifrada):
     try:
@@ -221,16 +223,16 @@ def descifrar_clave_aes_con_rsa(clave_aes_cifrada):
         raise
 
 """
-Función: guardar_archivo_en_db
-Esta función guarda un archivo cifrado en la base de datos.
-Argumentos:
-    user_id: El ID del usuario que posee el archivo.
-    nombre_archivo: El nombre del archivo que se va a guardar.
-    nonce: El nonce utilizado en el cifrado AES.
-    tag: El tag generado por el cifrado AES.
-    datos_cifrados: Los datos cifrados del archivo.
-    clave_aes_cifrada: La clave AES cifrada utilizada para cifrar el archivo.
-    ruta_relativa: La ruta relativa del archivo en el sistema de archivos del usuario.
+    Función: guardar_archivo_en_db
+    Esta función guarda un archivo cifrado en la base de datos.
+    Argumentos:
+        user_id: El ID del usuario que posee el archivo.
+        nombre_archivo: El nombre del archivo que se va a guardar.
+        nonce: El nonce utilizado en el cifrado AES.
+        tag: El tag generado por el cifrado AES.
+        datos_cifrados: Los datos cifrados del archivo.
+        clave_aes_cifrada: La clave AES cifrada utilizada para cifrar el archivo.
+        ruta_relativa: La ruta relativa del archivo en el sistema de archivos del usuario.
 """
 def guardar_archivo_en_db(user_id, nombre_archivo, nonce, tag, datos_cifrados, clave_aes_cifrada, ruta_relativa="./"):
     # Conecta con la base de datos
@@ -253,17 +255,17 @@ def guardar_archivo_en_db(user_id, nombre_archivo, nonce, tag, datos_cifrados, c
     conn.close()
 
 """
-Función: crear_archivo_o_carpeta_en_db
-Esta función crea una entrada en la base de datos para un archivo o carpeta.
-Argumentos:
-    user_id: El ID del usuario que posee el archivo o carpeta.
-    nombre_archivo: El nombre del archivo o carpeta.
-    ruta_relativa: La ruta relativa del archivo o carpeta en el sistema de archivos del usuario.
-    es_carpeta: Un booleano que indica si la entrada es una carpeta.
-    nonce: El nonce utilizado en el cifrado AES (solo para archivos).
-    tag: El tag generado por el cifrado AES (solo para archivos).
-    datos_cifrados: Los datos cifrados del archivo (solo para archivos).
-    clave_aes_cifrada: La clave AES cifrada utilizada para cifrar el archivo (solo para archivos).
+    Función: crear_archivo_o_carpeta_en_db
+    Esta función crea una entrada en la base de datos para un archivo o carpeta.
+    Argumentos:
+        user_id: El ID del usuario que posee el archivo o carpeta.
+        nombre_archivo: El nombre del archivo o carpeta.
+        ruta_relativa: La ruta relativa del archivo o carpeta en el sistema de archivos del usuario.
+        es_carpeta: Un booleano que indica si la entrada es una carpeta.
+        nonce: El nonce utilizado en el cifrado AES (solo para archivos).
+        tag: El tag generado por el cifrado AES (solo para archivos).
+        datos_cifrados: Los datos cifrados del archivo (solo para archivos).
+        clave_aes_cifrada: La clave AES cifrada utilizada para cifrar el archivo (solo para archivos).
 """
 def crear_archivo_o_carpeta_en_db(user_id, nombre_archivo, ruta_relativa, es_carpeta, nonce=None, tag=None, datos_cifrados=None, clave_aes_cifrada=None):
     # Conecta con la base de datos
@@ -287,12 +289,12 @@ def crear_archivo_o_carpeta_en_db(user_id, nombre_archivo, ruta_relativa, es_car
     conn.close()
     
 """
-Función: cifrar_y_guardar_archivo_en_db
-Esta función cifra un archivo local y lo guarda en la base de datos.
-Argumentos:
-    user_id: El ID del usuario que posee el archivo.
-    archivo: La ruta del archivo que se va a cifrar y guardar.
-    ruta_directorio_destino: La ruta del directorio donde se guardará el archivo en la base de datos.
+    Función: cifrar_y_guardar_archivo_en_db
+    Esta función cifra un archivo local y lo guarda en la base de datos.
+    Argumentos:
+        user_id: El ID del usuario que posee el archivo.
+        archivo: La ruta del archivo que se va a cifrar y guardar.
+        ruta_directorio_destino: La ruta del directorio donde se guardará el archivo en la base de datos.
 """
 def cifrar_y_guardar_archivo_en_db(user_id, archivo, ruta_directorio_destino):
     # Abre el archivo en modo binario y lee sus datos
@@ -425,7 +427,10 @@ def descargar_y_descifrar_archivo():
 
     # Imprime la lista de archivos disponibles
     for idx, elemento in enumerate(elementos):
-        print(f"{idx + 1}. {elemento}")
+        if elemento['nombre_archivo'].endswith('.aes'):
+            print(f"{idx + 1}. {(elemento['ruta_relativa'] + '/' + elemento['nombre_archivo']).replace('//', '/')}")
+        else:
+            print(f"{idx + 1}. {elemento['nombre_archivo']}")
 
     # Solicita al usuario que seleccione los archivos a descargar
     eleccion = input("Ingrese los números de los elementos a descargar, separados por comas: ")
@@ -436,7 +441,7 @@ def descargar_y_descifrar_archivo():
     # Para cada índice seleccionado, descarga y descifra el archivo correspondiente
     for idx in indices_seleccionados:
         if 0 <= idx < len(elementos):
-            nombre_elemento = elementos[idx]
+            nombre_elemento = elementos[idx]['nombre_archivo']
             if nombre_elemento.endswith('.aes'):
                 # Si el elemento es un archivo, lo descarga y descifra
                 descargar_y_descifrar_archivo_individual(user_id, nombre_elemento, ruta_descarga)
