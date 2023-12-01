@@ -447,7 +447,7 @@ def descargar_y_descifrar_archivo():
                 descargar_y_descifrar_archivo_individual(user_id, nombre_elemento, ruta_descarga)
             else:
                 # Si el elemento es una carpeta, descarga y descifra la carpeta completa
-                descargar_y_descifrar_carpeta(user_id, nombre_elemento, ruta_descarga)
+                descargar_y_descifrar_carpeta(user_id, elementos[idx]['ruta_relativa'], ruta_descarga)
         else:
             print(f"Índice {idx + 1} no válido.")
 
