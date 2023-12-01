@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import sqlite3
 import sys
@@ -363,7 +364,7 @@ def descargar_y_descifrar_archivo_individual(user_id, nombre_archivo, ruta_desca
         ruta_archivo_descifrado = os.path.join(ruta_descarga, nombre_archivo_descifrado)
         
         # Reemplaza los caracteres en la ruta de descarga
-        ruta_archivo_descifrado = ruta_archivo_descifrado.replace('\\', '/').replace('//', '/').replace('./', '').replace('\\./', '/').replace('\\\\./', '/')
+        ruta_archivo_descifrado = re.sub(r'[\\/]{2,}|[\\/]\\./', '/', ruta_archivo_descifrado)
 
         # Escribe los datos descifrados en el archivo
         with open(ruta_archivo_descifrado, 'wb') as f:
@@ -382,23 +383,24 @@ def descargar_y_descifrar_archivo_individual(user_id, nombre_archivo, ruta_desca
     ruta_descarga: La ruta donde se guardará la carpeta descargada y descifrada.
 """
 def descargar_y_descifrar_carpeta(user_id, ruta_carpeta, ruta_descarga):
+    # Asegurarse de que ruta_carpeta termine con '/'
+    if not ruta_carpeta.endswith('/'):
+        ruta_carpeta += '/'
     # Obtener todos los archivos del usuario
     todos_los_archivos = obtener_detalles_archivos_usuario(user_id)
 
-    # Filtrar para obtener solo los archivos dentro de la carpeta seleccionada y que terminan en '.aes'
-    archivos_en_carpeta = [archivo for archivo in todos_los_archivos 
-                           if archivo['ruta_relativa'].startswith(ruta_carpeta) and archivo['nombre_archivo'].endswith('.aes')]
-    
     # Crea la carpeta en el directorio de descargas si no existe
-    os.makedirs(os.path.join(ruta_descarga, ruta_carpeta), exist_ok=True)
+    ruta_descarga_carpeta = os.path.join(ruta_descarga, ruta_carpeta)
+    os.makedirs(ruta_descarga_carpeta, exist_ok=True)
 
-    for archivo in archivos_en_carpeta:
-        # Crea la ruta de descarga del archivo
-        ruta_descarga_archivo = os.path.join(ruta_descarga, ruta_carpeta)
-        # Reemplaza los caracteres en la ruta de descarga
-        ruta_descarga_archivo = ruta_descarga_archivo.replace('\\', '/').replace('//', '/').replace('./', '').replace('\\./', '/').replace('\\\\./', '/')
-        # Descarga y descifra el archivo
-        descargar_y_descifrar_archivo_individual(user_id, archivo['nombre_archivo'], ruta_descarga_archivo)
+    # Filtrar para obtener solo los archivos dentro de la carpeta seleccionada y que terminan en '.aes'
+    for archivo in todos_los_archivos:
+        if archivo['ruta_relativa'].startswith(ruta_carpeta):
+            if archivo['nombre_archivo'].endswith('.aes'):
+                # Crea la ruta de descarga del archivo
+                ruta_descarga_archivo = re.sub(r'[\\/]{2,}|[\\/]\\./', '/', ruta_descarga_carpeta)
+                # Descarga y descifra el archivo
+                descargar_y_descifrar_archivo_individual(user_id, archivo['nombre_archivo'], ruta_descarga_archivo)
 
 """
     Esta función permite al usuario seleccionar y descargar archivos o carpetas de la base de datos.
@@ -412,7 +414,7 @@ def descargar_y_descifrar_archivo():
     ruta_descarga = os.path.join(str(bdd.nombre_usuario_global), "Descargas")
     
     # Reemplaza los caracteres en la ruta de descarga
-    ruta_descarga = ruta_descarga.replace('\\', '/').replace('//', '/').replace('.', '')
+    ruta_descarga = re.sub(r'[\\/]{2,}|[\\/]\\./', '/', ruta_descarga)
     
     # Crea el directorio de descarga si no existe
     os.makedirs(ruta_descarga, exist_ok=True)
