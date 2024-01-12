@@ -25,6 +25,8 @@ def autenticar_usuario():
     if resultado == 1:
         return True
     return False
+    
+    
 
 """
     Función: seleccionar_directorio_destino
@@ -59,7 +61,8 @@ def seleccionar_directorio_destino():
     Esta función devuelve una lista de los archivos del usuario.
     Los archivos se identifican por su nombre si terminan en '.aes', y por su ruta relativa si comienzan con '/' o './'.
 """
-def listar_archivos_usuario(user_id):
+def listar_archivos_usuario():
+    user_id = obtener_user_id()
     conn = sqlite3.connect(DATABASE_FILE)
     cursor = conn.cursor()
     # Ejecuta la consulta SQL para obtener los archivos del usuario
@@ -78,6 +81,166 @@ def listar_archivos_usuario(user_id):
     archivos = [{'nombre_o_ruta': row[0], 'nombre_archivo': row[1], 'ruta_relativa': row[2]} for row in cursor.fetchall()]
     conn.close()
     return archivos
+
+def listar_archivos_usuario_compartir():
+    user_id = obtener_user_id()
+    
+    # Conecta a la base de datos
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+
+    # Consulta los archivos del usuario por su ID de usuario que no tienen datos y clave_AES_cifrada establecidos en NULL
+    cursor.execute('''
+        SELECT nombre_archivo
+        FROM archivos
+        WHERE user_id = ? AND datos IS NOT NULL AND clave_AES_cifrada IS NOT NULL
+    ''', (user_id,))
+
+    # Obtiene el resultado de la consulta
+    result = cursor.fetchall()
+
+    # Cierra la conexión a la base de datos
+    conn.close()
+
+    # Si el resultado no es None, imprime los nombres de los archivos
+    if result is not None:
+        print("\n TUS ARCHIVOS:\n")
+        for i, row in enumerate(result, start=1):
+            print(f"{i}. {row[0]}")
+    else:
+        print("No tienes archivos.")
+
+    # Solicita al usuario que seleccione los archivos que quiere compartir
+    archivos_a_compartir = input("Ingrese los números de los archivos que desea compartir, separados por comas: ")
+    
+    # Si no se seleccionó ningún archivo, termina la función
+    if not archivos_a_compartir:
+        print("No seleccionaste ningún archivo para compartir.")
+        return
+    
+    archivos_a_compartir = [int(num) for num in archivos_a_compartir.split(",")]
+
+    # Devuelve una lista con los nombres de los archivos seleccionados
+    return [result[i-1][0] for i in archivos_a_compartir if 1 <= i <= len(result)]
+
+def obtener_id_usuario_por_nombre(username):
+    # Conecta a la base de datos
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+
+    # Consulta el ID del usuario por su nombre de usuario
+    cursor.execute('''
+        SELECT ID
+        FROM usuarios
+        WHERE username = ?
+    ''', (username,))
+
+    # Obtiene el resultado de la consulta
+    result = cursor.fetchone()
+
+    # Cierra la conexión a la base de datos
+    conn.close()
+
+    # Si el resultado no es None, devuelve el ID del usuario
+    if result is not None:
+        return result[0]
+    else:
+        return None
+
+def obtener_clave_aes_cifrada(user_id, nombre_archivo):
+    # Conecta a la base de datos
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+
+    # Consulta la clave AES cifrada del archivo
+    cursor.execute('''
+        SELECT clave_AES_cifrada
+        FROM archivos
+        WHERE user_id = ? AND nombre_archivo = ?
+    ''', (user_id, nombre_archivo))
+
+    # Obtiene el resultado de la consulta
+    result = cursor.fetchone()
+
+    # Cierra la conexión a la base de datos
+    conn.close()
+
+    # Si el resultado no es None, devuelve la clave AES cifrada
+    if result is not None:
+        return result[0]
+    else:
+        return None
+    
+def obtener_clave_publica_rsa(user_id):
+    # Conecta a la base de datos
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+
+    # Consulta la clave pública RSA del usuario
+    cursor.execute('''
+        SELECT public_key
+        FROM usuarios
+        WHERE ID = ?
+    ''', (user_id,))
+
+    # Obtiene el resultado de la consulta
+    result = cursor.fetchone()
+
+    # Cierra la conexión a la base de datos
+    conn.close()
+
+    # Si el resultado no es None, devuelve la clave pública RSA
+    if result is not None:
+        return result[0]
+    else:
+        return None
+
+def compartir_archivo_con_usuario(username_2):
+    # Obtén el ID del Usuario 2 por su nombre de usuario
+    user_id_2 = obtener_id_usuario_por_nombre(username_2)
+
+    # Si no se encuentra el Usuario 2, termina la función
+    if user_id_2 is None:
+        print(f"No se encontró al usuario: {username_2}")
+        return
+    
+    # Lista los archivos del Usuario 1 y obtiene los nombres de los archivos que el usuario quiere compartir
+    archivos_a_compartir = listar_archivos_usuario_compartir()
+
+    # Si no se seleccionó ningún archivo, termina la función
+    if not archivos_a_compartir:
+        print("No seleccionaste ningún archivo para compartir.")
+        return
+
+    # Obtén el ID del Usuario 1 por su nombre de usuario
+    user_id_1 = obtener_user_id()
+
+    # Si no se encuentra el Usuario 1, termina la función
+    if user_id_1 is None:
+        print(f"No se encontró al usuario: {bdd.nombre_usuario_global}")
+        return
+
+    # Para cada archivo que el usuario quiere compartir
+    for nombre_archivo in archivos_a_compartir:
+        # Obtén la clave AES cifrada del archivo del Usuario 1
+        datos, clave_aes_cifrada = obtener_datos_archivo(user_id_1, nombre_archivo)
+
+        # Descifra la clave AES con la clave privada del Usuario 1
+        clave_aes = descifrar_clave_aes_con_rsa(clave_aes_cifrada)
+        
+            # Intenta descifrar los datos del archivo con AES
+        try:
+            datos_descifrados = descifrar_con_aes(datos, clave_aes)
+            
+            # Elimina la extensión '.aes' del nombre del archivo
+            nombre_archivo_descifrado = nombre_archivo.replace('.aes', '')
+
+            cifrar_y_guardar_datos_en_db(user_id_2, datos_descifrados, nombre_archivo_descifrado, "./")
+            
+            print(f"Archivo {nombre_archivo_descifrado} compartido y cifrado.")
+        except Exception as e:
+            print(f"Error al descifrar {nombre_archivo}: {e}")
+
 
 def obtener_detalles_archivos_usuario(user_id):
     # Conectarse a la base de datos
@@ -310,6 +473,16 @@ def cifrar_y_guardar_archivo_en_db(user_id, archivo, ruta_directorio_destino):
     
     # Guarda el archivo cifrado en la base de datos
     guardar_archivo_en_db(user_id, nombre_archivo_cifrado, nonce, tag, datos_cifrados, clave_aes_cifrada, ruta_directorio_destino)
+    
+def cifrar_y_guardar_datos_en_db(user_id, datos_archivo, nombre_archivo, ruta_directorio_destino):
+    # Cifra los datos del archivo con AES
+    nonce, tag, datos_cifrados, clave_aes_cifrada = cifrar_con_aes(user_id, datos_archivo)
+    
+    # Añade la extensión '.aes' al nombre del archivo
+    nombre_archivo_cifrado = nombre_archivo + '.aes'
+    
+    # Guarda el archivo cifrado en la base de datos
+    guardar_archivo_en_db(user_id, nombre_archivo_cifrado, nonce, tag, datos_cifrados, clave_aes_cifrada, ruta_directorio_destino)
 
 """
     Esta función cifra una carpeta y sus archivos y los guarda en la base de datos.
@@ -420,7 +593,7 @@ def descargar_y_descifrar_archivo():
     os.makedirs(ruta_descarga, exist_ok=True)
 
     # Obtiene la lista de archivos del usuario
-    elementos = listar_archivos_usuario(user_id)
+    elementos = listar_archivos_usuario()
     
     # Si no hay archivos, imprime un mensaje y termina la función
     if not elementos:
@@ -561,7 +734,9 @@ def gestionar_drive():
         print("2. Subir archivo")
         print("3. Subir carpeta")
         print("4. Descargar archivos")
-        print("5. Salir")
+        print("5. Compartir archivo con otro usuario")
+        print("6. Listar archivos")
+        print("7. Salir")
         # Solicita al usuario que seleccione una opción
         opcion = input("Seleccione una opción: ")
         # Ejecuta la opción seleccionada por el usuario
@@ -574,12 +749,30 @@ def gestionar_drive():
         elif opcion == "4":
             descargar_y_descifrar_archivo()
         elif opcion == "5":
+            # Si el usuario selecciona la opción de compartir archivo con otro usuario, llama a la función compartir_archivo_con_usuario
+            username_2 = input("Ingrese el nombre de usuario con el que desea compartir el archivo: ")
+            compartir_archivo_con_usuario(username_2)
+        elif opcion == "6":
+            # Si el usuario selecciona la opción de listar archivos, llama a la función listar_archivos_usuario
+            elementos = listar_archivos_usuario()
+
+            # Si no hay archivos, imprime un mensaje y termina la función
+            if not elementos:
+                print("No hay archivos disponibles.")
+                return
+
+            # Imprime la lista de archivos disponibles
+            for idx, elemento in enumerate(elementos):
+                if elemento['nombre_archivo'].endswith('.aes'):
+                    print(f"{idx + 1}. {(elemento['ruta_relativa'] + '/' + elemento['nombre_archivo']).replace('//', '/')}")
+                else:
+                    print(f"{idx + 1}. {elemento['nombre_archivo']}")
+        elif opcion == "7":
             # Si el usuario selecciona la opción de salir, termina el programa
             sys.exit("Saliendo del programa")
         else:
             # Si el usuario selecciona una opción no válida, imprime un mensaje de error
             print("Opción no válida. Intente nuevamente.")
-
 """
     Esta función proporciona un menú principal para que el usuario pueda interactuar con el sistema.
     El usuario puede iniciar sesión, registrarse o salir del programa.

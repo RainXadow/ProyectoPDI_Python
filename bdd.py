@@ -32,6 +32,7 @@ cursor.execute('''
     )
 ''')
 
+# Crear la tabla de archivos si no existe
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS archivos (
         archivo_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,37 +40,29 @@ cursor.execute('''
         nombre_archivo TEXT,
         datos BLOB,
         clave_AES_cifrada TEXT,
-        ruta_relativa TEXT,  -- Nueva columna para la ruta relativa
+        ruta_relativa TEXT,
         FOREIGN KEY(user_id) REFERENCES usuarios(ID)
     )
 ''')
 
-
 #Fase 2
 
-def cifrar_con_aes(user_id, datos):
-    # Generar una clave AES aleatoria
-    clave_aes = os.urandom(32)  # 256 bits para AES
+'''
+Esta función cifra los datos proporcionados utilizando el algoritmo de cifrado AES (Advanced Encryption Standard) y luego cifra la clave AES generada utilizando la clave pública RSA del usuario especificado.
 
-    # Cifrar los datos
-    cipher_aes = AES.new(clave_aes, AES.MODE_EAX)
-    datos_cifrados, tag = cipher_aes.encrypt_and_digest(datos)
+Parámetros:
+- user_id (int): El ID del usuario. Se utiliza para obtener la clave pública RSA del usuario de la base de datos.
+- datos (bytes): Los datos a cifrar. Deben ser un objeto de bytes.
 
-    # Obtener la clave pública RSA del usuario desde la base de datos
-    conn = sqlite3.connect('usuarios2.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT public_key FROM usuarios WHERE ID=?', (user_id,))
-    clave_publica_rsa = cursor.fetchone()[0]
-    conn.close()
+Devuelve:
+- nonce (bytes): Un número utilizado una sola vez generado por el modo EAX de AES. Se utiliza para descifrar los datos.
+- tag (bytes): Un valor de autenticación de los datos generado por el modo EAX de AES. Se utiliza para verificar la integridad de los datos al descifrarlos.
+- datos_cifrados (bytes): Los datos cifrados.
+- clave_aes_cifrada (bytes): La clave AES utilizada para cifrar los datos, cifrada con la clave pública RSA del usuario.
 
-    # Cifrar la clave AES con la clave pública RSA
-    clave_publica = RSA.import_key(clave_publica_rsa)
-    cipher_rsa = PKCS1_OAEP.new(clave_publica)
-    clave_aes_cifrada = cipher_rsa.encrypt(clave_aes)
-
-    # Devolver los datos cifrados, el nonce, el tag y la clave AES cifrada
-    return cipher_aes.nonce, tag, datos_cifrados, clave_aes_cifrada
-
+Ejemplo de uso:
+nonce, tag, datos_cifrados, clave_aes_cifrada = cifrar_con_aes(user_id, datos)
+'''
 
 '''
 def cifrar_con_aes(user_id, datos):
@@ -93,7 +86,47 @@ clave_aes_cifrada = cipher_rsa.encrypt(clave_aes)
 # Devolver los datos cifrados, el nonce, el tag y la clave AES cifrada
 return cipher_aes.nonce, tag, datos_cifrados, clave_aes_cifrada
 '''
+def cifrar_con_aes(user_id, datos):
+    # Generar una clave AES aleatoria de 256 bits
+    clave_aes = os.urandom(32)
 
+    # Crear un nuevo objeto de cifrado AES en el modo EAX
+    cipher_aes = AES.new(clave_aes, AES.MODE_EAX)
+
+    # Cifrar los datos con AES y calcular un valor de autenticación de los datos (tag)
+    datos_cifrados, tag = cipher_aes.encrypt_and_digest(datos)
+
+    # Obtener la clave pública RSA del usuario desde la base de datos
+    conn = sqlite3.connect('usuarios2.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT public_key FROM usuarios WHERE ID=?', (user_id,))
+    clave_publica_rsa = cursor.fetchone()[0]
+    conn.close()
+
+    # Cifrar la clave AES con la clave pública RSA
+    clave_publica = RSA.import_key(clave_publica_rsa)
+    cipher_rsa = PKCS1_OAEP.new(clave_publica)
+    clave_aes_cifrada = cipher_rsa.encrypt(clave_aes)
+
+    # Devolver los datos cifrados, el nonce, el tag y la clave AES cifrada
+    return cipher_aes.nonce, tag, datos_cifrados, clave_aes_cifrada
+
+'''
+def descifrar_con_aes(user_id, nonce, tag, datos_cifrados, clave_aes_cifrada):
+    # Obtener la clave privada RSA del usuario (esto puede requerir una contraseña)
+    # Aquí necesitas la lógica para obtener la clave privada RSA del usuario
+    clave_privada_rsa = obtener_clave_privada_rsa(user_id)
+
+    # Descifrar la clave AES con la clave privada RSA
+    clave_privada = RSA.import_key(clave_privada_rsa)
+    cipher_rsa = PKCS1_OAEP.new(clave_privada)
+    clave_aes = cipher_rsa.decrypt(clave_aes_cifrada)
+
+    # Descifrar los datos con la clave AES
+    cipher_aes = AES.new(clave_aes, AES.MODE_EAX, nonce)
+    datos_descifrados = cipher_aes.decrypt_and_verify(datos_cifrados, tag)
+    return datos_descifrados'''
+    
 def descifrar_con_aes(datos_cifrados, clave_aes):
     # Asegúrate de que datos_cifrados es un objeto bytes
     if not isinstance(datos_cifrados, bytes):
@@ -112,23 +145,6 @@ def descifrar_con_aes(datos_cifrados, clave_aes):
         raise ValueError("La verificación del MAC falló o la clave AES es incorrecta. EXCEPCION: {e}") from e
 
     return datos_descifrados
-
-
-'''
-def descifrar_con_aes(user_id, nonce, tag, datos_cifrados, clave_aes_cifrada):
-    # Obtener la clave privada RSA del usuario (esto puede requerir una contraseña)
-    # Aquí necesitas la lógica para obtener la clave privada RSA del usuario
-    clave_privada_rsa = obtener_clave_privada_rsa(user_id)
-
-    # Descifrar la clave AES con la clave privada RSA
-    clave_privada = RSA.import_key(clave_privada_rsa)
-    cipher_rsa = PKCS1_OAEP.new(clave_privada)
-    clave_aes = cipher_rsa.decrypt(clave_aes_cifrada)
-
-    # Descifrar los datos con la clave AES
-    cipher_aes = AES.new(clave_aes, AES.MODE_EAX, nonce)
-    datos_descifrados = cipher_aes.decrypt_and_verify(datos_cifrados, tag)
-    return datos_descifrados'''
 
 def generar_uuid128():
     """
@@ -187,6 +203,24 @@ def cifrar_clave_privada(clave_privada, password):
     ciphertext, tag = cipher.encrypt_and_digest(clave_privada)
     encrypted_private_key = b64encode(ciphertext + cipher.nonce + tag + private_key_salt).decode('utf-8')
     return encrypted_private_key
+
+def cifrar_clave_publica_aes_con_rsa(clave_aes, clave_publica_rsa):
+    try:
+        # Importa la clave pública RSA del Usuario 2
+        public_key = RSA.import_key(clave_publica_rsa)
+
+        # Crea un objeto de cifrado RSA con la clave pública
+        cipher_rsa = PKCS1_OAEP.new(public_key)
+        
+        # Cifra la clave AES con el objeto de cifrado RSA
+        clave_aes_cifrada_para_usuario_2 = cipher_rsa.encrypt(clave_aes)
+        
+        return clave_aes_cifrada_para_usuario_2
+
+    except Exception as e:
+        # Imprime cualquier error que ocurra durante el proceso de cifrado
+        print(f"Error al usar la clave pública RSA: {e}")
+        raise
 
 
 def seleccion():
