@@ -125,8 +125,9 @@ def descifrar_con_aes(user_id, nonce, tag, datos_cifrados, clave_aes_cifrada):
     # Descifrar los datos con la clave AES
     cipher_aes = AES.new(clave_aes, AES.MODE_EAX, nonce)
     datos_descifrados = cipher_aes.decrypt_and_verify(datos_cifrados, tag)
-    return datos_descifrados'''
+    return datos_descifrados
     
+'''
 def descifrar_con_aes(datos_cifrados, clave_aes):
     # Asegúrate de que datos_cifrados es un objeto bytes
     if not isinstance(datos_cifrados, bytes):

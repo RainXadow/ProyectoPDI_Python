@@ -82,6 +82,24 @@ def listar_archivos_usuario():
     conn.close()
     return archivos
 
+
+"""
+    Esta función se encarga de listar los archivos que un usuario puede compartir.
+
+    Primero, obtiene el ID del usuario actual y establece una conexión con la base de datos SQLite.
+    Luego, realiza una consulta SQL para obtener los nombres de los archivos que pertenecen al usuario y que están disponibles para compartir (es decir, aquellos cuyos datos y clave_AES_cifrada no son NULL).
+
+    Si la consulta devuelve algún resultado, se imprime una lista numerada de los nombres de los archivos.
+    Luego, se solicita al usuario que ingrese los números correspondientes a los archivos que desea compartir.
+
+    La función devuelve una lista con los nombres de los archivos seleccionados por el usuario.
+
+    Parámetros:
+    Ninguno.
+
+    Devuelve:
+    Una lista de strings con los nombres de los archivos que el usuario desea compartir. Si el usuario no selecciona ningún archivo, la función devuelve None.
+    """
 def listar_archivos_usuario_compartir():
     user_id = obtener_user_id()
     
@@ -123,6 +141,23 @@ def listar_archivos_usuario_compartir():
     # Devuelve una lista con los nombres de los archivos seleccionados
     return [result[i-1][0] for i in archivos_a_compartir if 1 <= i <= len(result)]
 
+"""
+Esta función se utiliza para obtener el ID de un usuario en la base de datos a partir de su nombre de usuario.
+
+Parámetros:
+    username (str): El nombre de usuario del usuario cuyo ID se quiere obtener.
+
+Devuelve:
+    user_id (int o None): El ID del usuario si se encuentra en la base de datos; None si no se encuentra.
+
+Funcionamiento:
+    1. Se establece una conexión con la base de datos.
+    2. Se crea un cursor para ejecutar consultas SQL.
+    3. Se ejecuta una consulta SQL para seleccionar el ID del usuario de la tabla 'usuarios' donde el nombre de usuario coincide con el proporcionado.
+    4. Se obtiene el primer resultado de la consulta (si existe) con `fetchone()`.
+    5. Se cierra la conexión a la base de datos.
+    6. Si se encontró un resultado, se devuelve el ID del usuario (que es el primer y único elemento de la tupla resultante). Si no se encontró ningún resultado, se devuelve None.
+"""
 def obtener_id_usuario_por_nombre(username):
     # Conecta a la base de datos
     conn = sqlite3.connect(DATABASE_FILE)
@@ -147,54 +182,29 @@ def obtener_id_usuario_por_nombre(username):
     else:
         return None
 
-def obtener_clave_aes_cifrada(user_id, nombre_archivo):
-    # Conecta a la base de datos
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
+"""
+Esta función se utiliza para compartir archivos entre dos usuarios en el sistema.
 
-    # Consulta la clave AES cifrada del archivo
-    cursor.execute('''
-        SELECT clave_AES_cifrada
-        FROM archivos
-        WHERE user_id = ? AND nombre_archivo = ?
-    ''', (user_id, nombre_archivo))
+Parámetros:
+    username_2 (str): El nombre de usuario del Usuario 2 con el que el Usuario 1 quiere compartir archivos.
 
-    # Obtiene el resultado de la consulta
-    result = cursor.fetchone()
+Devuelve:
+    None
 
-    # Cierra la conexión a la base de datos
-    conn.close()
-
-    # Si el resultado no es None, devuelve la clave AES cifrada
-    if result is not None:
-        return result[0]
-    else:
-        return None
-    
-def obtener_clave_publica_rsa(user_id):
-    # Conecta a la base de datos
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-
-    # Consulta la clave pública RSA del usuario
-    cursor.execute('''
-        SELECT public_key
-        FROM usuarios
-        WHERE ID = ?
-    ''', (user_id,))
-
-    # Obtiene el resultado de la consulta
-    result = cursor.fetchone()
-
-    # Cierra la conexión a la base de datos
-    conn.close()
-
-    # Si el resultado no es None, devuelve la clave pública RSA
-    if result is not None:
-        return result[0]
-    else:
-        return None
-
+Funcionamiento:
+    1. Obtiene el ID del Usuario 2 por su nombre de usuario.
+    2. Si no se encuentra el Usuario 2, termina la función e imprime un mensaje de error.
+    3. Lista los archivos del Usuario 1 y obtiene los nombres de los archivos que el usuario quiere compartir.
+    4. Si no se seleccionó ningún archivo, termina la función e imprime un mensaje de error.
+    5. Obtiene el ID del Usuario 1.
+    6. Si no se encuentra el Usuario 1, termina la función e imprime un mensaje de error.
+    7. Para cada archivo que el Usuario 1 quiere compartir, hace lo siguiente:
+        a. Obtiene la clave AES cifrada del archivo del Usuario 1.
+        b. Descifra la clave AES con la clave privada del Usuario 1.
+        c. Intenta descifrar los datos del archivo con AES.
+        d. Si el descifrado es exitoso, elimina la extensión '.aes' del nombre del archivo y cifra los datos descifrados con la clave pública del Usuario 2. Luego, guarda los datos cifrados en la base de datos asociados al Usuario 2.
+        e. Si ocurre un error durante el descifrado, imprime un mensaje de error y continúa con el siguiente archivo.
+"""
 def compartir_archivo_con_usuario(username_2):
     # Obtén el ID del Usuario 2 por su nombre de usuario
     user_id_2 = obtener_id_usuario_por_nombre(username_2)
@@ -242,6 +252,27 @@ def compartir_archivo_con_usuario(username_2):
             print(f"Error al descifrar {nombre_archivo}: {e}")
 
 
+"""
+Esta función se utiliza para obtener los detalles de todos los archivos asociados a un usuario específico en la base de datos.
+
+Parámetros:
+    user_id (int): El ID del usuario para el cual se deben obtener los detalles de los archivos.
+
+Devuelve:
+    detalles_archivos (list): Una lista de diccionarios, donde cada diccionario representa un archivo y contiene las siguientes claves:
+        - 'archivo_id' (int): El ID del archivo.
+        - 'nombre_archivo' (str): El nombre del archivo.
+        - 'ruta_relativa' (str): La ruta relativa del archivo en el sistema de archivos.
+        - 'user_id' (int): El ID del usuario que posee el archivo.
+
+Funcionamiento:
+    1. Se establece una conexión con la base de datos.
+    2. Se ejecuta una consulta SQL para seleccionar las columnas archivo_id, nombre_archivo, ruta_relativa y user_id de la tabla 'archivos' donde el user_id coincide con el proporcionado.
+    3. Se obtienen todos los resultados de la consulta, que se devuelven como una lista de tuplas.
+    4. Se convierten los resultados en una lista de diccionarios para facilitar su manipulación.
+    5. Se cierra la conexión a la base de datos.
+    6. Se devuelve la lista de diccionarios.
+"""
 def obtener_detalles_archivos_usuario(user_id):
     # Conectarse a la base de datos
     # 'nombre_base_datos.db' debe ser reemplazado por el nombre de tu base de datos
@@ -722,8 +753,20 @@ def obtener_user_id():
     return session_data.get('user_uuid')
 
 """
-    Esta función proporciona un menú de opciones para que el usuario pueda interactuar con el sistema de archivos.
-    El usuario puede crear archivos o carpetas, subir archivos o carpetas, descargar archivos o salir del programa.
+Esta función proporciona un menú de opciones para que el usuario pueda interactuar con el sistema de archivos.
+El usuario puede realizar las siguientes acciones:
+
+1. Crear archivo o carpeta: Llama a la función `crear_archivo_o_carpeta()`.
+2. Subir archivo: Llama a la función `subir_archivo()`.
+3. Subir carpeta: Llama a la función `subir_carpeta()`.
+4. Descargar archivos: Llama a la función `descargar_y_descifrar_archivo()`.
+5. Compartir archivo con otro usuario: Pide al usuario que ingrese el nombre del usuario con el que desea compartir el archivo y luego llama a la función `compartir_archivo_con_usuario(username_2)`.
+6. Listar archivos: Llama a la función `listar_archivos_usuario()`, que devuelve una lista de archivos del usuario. Si no hay archivos disponibles, imprime un mensaje y termina la función. Si hay archivos disponibles, imprime la lista de archivos.
+7. Salir: Termina el programa.
+
+Si el usuario selecciona una opción no válida, imprime un mensaje de error y pide al usuario que intente nuevamente.
+
+El menú de opciones se mantiene en ejecución hasta que el usuario decida salir.
 """
 def gestionar_drive():
     # Bucle infinito para mantener el menú de opciones en ejecución hasta que el usuario decida salir
