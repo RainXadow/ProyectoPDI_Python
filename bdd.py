@@ -41,6 +41,8 @@ cursor.execute('''
         datos BLOB,
         clave_AES_cifrada TEXT,
         ruta_relativa TEXT,
+        firma BLOB,
+        nombre_usuario_comparte TEXT,
         FOREIGN KEY(user_id) REFERENCES usuarios(ID)
     )
 ''')

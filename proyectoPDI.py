@@ -1,8 +1,6 @@
-import hashlib
 import json
 import os
 import re
-import shutil
 import sqlite3
 import sys
 import tkinter as tk
@@ -10,6 +8,10 @@ from tkinter import filedialog
 
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.PublicKey import RSA
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 import bdd
 from bdd import (cifrar_con_aes, descifrar_con_aes, iniciar_sesion,
@@ -26,7 +28,74 @@ def autenticar_usuario():
         return True
     return False
     
+"""
+    Esta función firma los datos proporcionados utilizando la clave privada RSA del usuario actual.
+
+    Parámetros:
+    datos (bytes): Los datos que se van a firmar. Deben ser bytes, no una cadena de texto.
+
+    Retorna:
+    bytes: La firma de los datos, que es un objeto de bytes.
+"""
+def firmar_datos(datos):
+    private_key = bdd.clave_privada_rsa_global
+    private_key2 = load_pem_private_key(private_key, password=None)
+    # Firmamos los datos
+    signature = private_key2.sign(
+        datos,
+        padding.PSS(
+            mgf=padding.MGF1(hashes.SHA256()),
+            salt_length=padding.PSS.MAX_LENGTH
+        ),
+        hashes.SHA256()
+    )
+
+    # Devolvemos la firma
+    return signature
+
+"""
+    Esta función verifica una firma utilizando la clave pública RSA del usuario que compartió los datos.
+
+    Parámetros:
+    nombre_usuario_comparte (str): El nombre de usuario del usuario que compartió los datos.
+    signature (bytes): La firma que se va a verificar. Debe ser un objeto de bytes, no una cadena de texto.
+    original_data (bytes): Los datos originales que se firmaron. Deben ser bytes, no una cadena de texto.
+
+    Retorna:
+    bool: True si la firma es válida, False en caso contrario.
+"""
+def verificar_firma(nombre_usuario_comparte, signature, original_data):
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute('SELECT public_key FROM usuarios WHERE username=?', (nombre_usuario_comparte,))
+    result = cursor.fetchone()
+    conn.close()
+
+    if result is None:
+        print("El nombre de usuario no existe.")
+        return False
+
+    clave_publica_rsa = result[0]
     
+    # Cargamos la clave pública
+    public_key = serialization.load_pem_public_key(clave_publica_rsa.encode())
+
+    try:
+        # Verificamos la firma
+        public_key.verify(
+            signature,
+            original_data,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+            ),
+            hashes.SHA256()
+        )
+        print("La firma es válida.")
+        return True
+    except InvalidSignature:
+        print("La firma es inválida.")
+        return False
 
 """
     Función: seleccionar_directorio_destino
@@ -73,12 +142,15 @@ def listar_archivos_usuario():
                 WHEN nombre_archivo LIKE "/%" OR nombre_archivo LIKE "./%" THEN ruta_relativa
             END as nombre_o_ruta,
             nombre_archivo,
-            ruta_relativa
+            ruta_relativa,
+            firma,
+            nombre_usuario_comparte,
+            datos
         FROM archivos
         WHERE user_id=?
     ''', (user_id,))
     # Obtiene los resultados de la consulta y los guarda en una lista de diccionarios
-    archivos = [{'nombre_o_ruta': row[0], 'nombre_archivo': row[1], 'ruta_relativa': row[2]} for row in cursor.fetchall()]
+    archivos = [{'nombre_o_ruta': row[0], 'nombre_archivo': row[1], 'ruta_relativa': row[2], 'firma': row[3], 'nombre_usuario_comparte': row[4], 'datos': row[5]} for row in cursor.fetchall()]
     conn.close()
     return archivos
 
@@ -238,14 +310,20 @@ def compartir_archivo_con_usuario(username_2):
         # Descifra la clave AES con la clave privada del Usuario 1
         clave_aes = descifrar_clave_aes_con_rsa(clave_aes_cifrada)
         
-            # Intenta descifrar los datos del archivo con AES
+        # Intenta descifrar los datos del archivo con AES
         try:
             datos_descifrados = descifrar_con_aes(datos, clave_aes)
             
+            # Firmamos los datos descifrados
+            firma = firmar_datos(datos_descifrados)
+
             # Elimina la extensión '.aes' del nombre del archivo
             nombre_archivo_descifrado = nombre_archivo.replace('.aes', '')
 
-            cifrar_y_guardar_datos_en_db(user_id_2, datos_descifrados, nombre_archivo_descifrado, "./")
+            # Guardamos los datos descifrados, la firma y el nombre del usuario que compartió el archivo en la base de datos
+            cifrar_y_guardar_datos_en_db(user_id_2, datos_descifrados, nombre_archivo_descifrado, "./", firma, bdd.nombre_usuario_global)
+            
+            # cifrar_y_guardar_datos_en_db(user_id_2, datos_descifrados, nombre_archivo_descifrado, "./")
             
             print(f"Archivo {nombre_archivo_descifrado} compartido y cifrado.")
         except Exception as e:
@@ -429,7 +507,7 @@ def descifrar_clave_aes_con_rsa(clave_aes_cifrada):
         clave_aes_cifrada: La clave AES cifrada utilizada para cifrar el archivo.
         ruta_relativa: La ruta relativa del archivo en el sistema de archivos del usuario.
 """
-def guardar_archivo_en_db(user_id, nombre_archivo, nonce, tag, datos_cifrados, clave_aes_cifrada, ruta_relativa="./"):
+def guardar_archivo_en_db(user_id, nombre_archivo, nonce, tag, datos_cifrados, clave_aes_cifrada, ruta_relativa="./", firma=None, username_comparte=None):
     # Conecta con la base de datos
     conn = sqlite3.connect(DATABASE_FILE)
     cursor = conn.cursor()
@@ -439,9 +517,9 @@ def guardar_archivo_en_db(user_id, nombre_archivo, nonce, tag, datos_cifrados, c
     
     # Ejecuta la consulta SQL para insertar el archivo en la base de datos
     cursor.execute('''
-        INSERT INTO archivos (user_id, nombre_archivo, datos, clave_AES_cifrada, ruta_relativa)
-        VALUES (?, ?, ?, ?, ?)''',
-        (user_id, nombre_archivo, datos_completos, clave_aes_cifrada, ruta_relativa))
+        INSERT INTO archivos (user_id, nombre_archivo, datos, clave_AES_cifrada, ruta_relativa, firma, nombre_usuario_comparte)
+        VALUES (?, ?, ?, ?, ?, ?, ?)''',
+        (user_id, nombre_archivo, datos_completos, clave_aes_cifrada, ruta_relativa, firma, username_comparte))
     
     # Confirma los cambios en la base de datos
     conn.commit()
@@ -505,7 +583,7 @@ def cifrar_y_guardar_archivo_en_db(user_id, archivo, ruta_directorio_destino):
     # Guarda el archivo cifrado en la base de datos
     guardar_archivo_en_db(user_id, nombre_archivo_cifrado, nonce, tag, datos_cifrados, clave_aes_cifrada, ruta_directorio_destino)
     
-def cifrar_y_guardar_datos_en_db(user_id, datos_archivo, nombre_archivo, ruta_directorio_destino):
+def cifrar_y_guardar_datos_en_db(user_id, datos_archivo, nombre_archivo, ruta_directorio_destino, firma=None, username_comparte=None):
     # Cifra los datos del archivo con AES
     nonce, tag, datos_cifrados, clave_aes_cifrada = cifrar_con_aes(user_id, datos_archivo)
     
@@ -513,7 +591,7 @@ def cifrar_y_guardar_datos_en_db(user_id, datos_archivo, nombre_archivo, ruta_di
     nombre_archivo_cifrado = nombre_archivo + '.aes'
     
     # Guarda el archivo cifrado en la base de datos
-    guardar_archivo_en_db(user_id, nombre_archivo_cifrado, nonce, tag, datos_cifrados, clave_aes_cifrada, ruta_directorio_destino)
+    guardar_archivo_en_db(user_id, nombre_archivo_cifrado, nonce, tag, datos_cifrados, clave_aes_cifrada, ruta_directorio_destino, firma, username_comparte)
 
 """
     Esta función cifra una carpeta y sus archivos y los guarda en la base de datos.
@@ -550,7 +628,7 @@ def cifrar_y_guardar_carpeta_en_db(user_id, carpeta_seleccionada, ruta_directori
     nombre_archivo: El nombre del archivo que se va a descargar y descifrar.
     ruta_descarga: La ruta donde se guardará el archivo descargado y descifrado.
 """
-def descargar_y_descifrar_archivo_individual(user_id, nombre_archivo, ruta_descarga):
+def descargar_y_descifrar_archivo_individual(user_id, nombre_archivo, ruta_descarga, firma=None, username_comparte=None):
     # Obtiene los datos cifrados y la clave AES cifrada del archivo de la base de datos
     datos, clave_aes_cifrada = obtener_datos_archivo(user_id, nombre_archivo)
 
@@ -560,6 +638,12 @@ def descargar_y_descifrar_archivo_individual(user_id, nombre_archivo, ruta_desca
     # Intenta descifrar los datos del archivo con AES
     try:
         datos_descifrados = descifrar_con_aes(datos, clave_aes)
+        
+        if firma is not None:
+            # Verifica la firma
+            if verificar_firma(username_comparte, firma, datos_descifrados) is False:
+                print("La firma del archivo no es válida.")
+                return
         
         # Elimina la extensión '.aes' del nombre del archivo
         nombre_archivo_descifrado = nombre_archivo.replace('.aes', '')
@@ -634,7 +718,7 @@ def descargar_y_descifrar_archivo():
     # Imprime la lista de archivos disponibles
     for idx, elemento in enumerate(elementos):
         if elemento['nombre_archivo'].endswith('.aes'):
-            print(f"{idx + 1}. {(elemento['ruta_relativa'] + '/' + elemento['nombre_archivo']).replace('//', '/')}")
+            print(f"{idx + 1}. {(elemento['ruta_relativa'] + '/' + elemento['nombre_archivo']).replace('//', '/')}") 
         else:
             print(f"{idx + 1}. {elemento['nombre_archivo']}")
 
@@ -649,8 +733,14 @@ def descargar_y_descifrar_archivo():
         if 0 <= idx < len(elementos):
             nombre_elemento = elementos[idx]['nombre_archivo']
             if nombre_elemento.endswith('.aes'):
-                # Si el elemento es un archivo, lo descarga y descifra
-                descargar_y_descifrar_archivo_individual(user_id, nombre_elemento, ruta_descarga)
+                
+                # Si el archivo tiene una firma, verifica la firma
+                if elementos[idx]['firma'] is not None:
+                    # Si el elemento es un archivo compartido, envia la firma y el nombre del usuario que lo compartió para verificar la firma y descargarlo
+                    descargar_y_descifrar_archivo_individual(user_id, nombre_elemento, ruta_descarga, elementos[idx]['firma'], elementos[idx]['nombre_usuario_comparte'])
+                else:
+                    # Si el elemento es un archivo, lo descarga y descifra
+                    descargar_y_descifrar_archivo_individual(user_id, nombre_elemento, ruta_descarga)
             else:
                 # Si el elemento es una carpeta, descarga y descifra la carpeta completa
                 descargar_y_descifrar_carpeta(user_id, elementos[idx]['ruta_relativa'], ruta_descarga)
