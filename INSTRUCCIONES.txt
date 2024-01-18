@@ -1,0 +1,11 @@
+Para utilizar el programa se debe de ejecutar el archivo proyectoPDI.exe, que se encuentra en la carpeta /dist del proyecto.
+
+Una vez dentro, se pueden usar los usuarios que facilito para probar las funciones del programa nuevas sin tener que volver a crear usuarios y subir archivos.
+
+USUARIOS DE PRUEBA:
+
+- Usuario: jesus3
+    Contraseña: jesus1234
+
+- Usuario: prueba2
+    Contraseña: prueba1234
