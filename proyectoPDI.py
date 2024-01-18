@@ -206,7 +206,7 @@ def listar_archivos_usuario_compartir():
     # Si no se seleccionó ningún archivo, termina la función
     if not archivos_a_compartir:
         print("No seleccionaste ningún archivo para compartir.")
-        return
+        return False
     
     archivos_a_compartir = [int(num) for num in archivos_a_compartir.split(",")]
 
@@ -288,10 +288,8 @@ def compartir_archivo_con_usuario(username_2):
     
     # Lista los archivos del Usuario 1 y obtiene los nombres de los archivos que el usuario quiere compartir
     archivos_a_compartir = listar_archivos_usuario_compartir()
-
-    # Si no se seleccionó ningún archivo, termina la función
-    if not archivos_a_compartir:
-        print("No seleccionaste ningún archivo para compartir.")
+    
+    if archivos_a_compartir is False:
         return
 
     # Obtén el ID del Usuario 1 por su nombre de usuario
@@ -322,8 +320,6 @@ def compartir_archivo_con_usuario(username_2):
 
             # Guardamos los datos descifrados, la firma y el nombre del usuario que compartió el archivo en la base de datos
             cifrar_y_guardar_datos_en_db(user_id_2, datos_descifrados, nombre_archivo_descifrado, "./", firma, bdd.nombre_usuario_global)
-            
-            # cifrar_y_guardar_datos_en_db(user_id_2, datos_descifrados, nombre_archivo_descifrado, "./")
             
             print(f"Archivo {nombre_archivo_descifrado} compartido y cifrado.")
         except Exception as e:
@@ -642,8 +638,7 @@ def descargar_y_descifrar_archivo_individual(user_id, nombre_archivo, ruta_desca
         if firma is not None:
             # Verifica la firma
             if verificar_firma(username_comparte, firma, datos_descifrados) is False:
-                print("La firma del archivo no es válida.")
-                return
+                return False
         
         # Elimina la extensión '.aes' del nombre del archivo
         nombre_archivo_descifrado = nombre_archivo.replace('.aes', '')
