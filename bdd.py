@@ -226,25 +226,6 @@ def cifrar_clave_publica_aes_con_rsa(clave_aes, clave_publica_rsa):
         raise
 
 
-def seleccion():
-    """
-    Muestra un menú de selección al usuario y ejecuta la función correspondiente a la elección del usuario.
-    """
-    print('1. Registrar usuario')
-    print('2. Iniciar sesión')
-    print('3. Salir')
-
-    opcion = input('Selecciona una opción: ')
-
-    if opcion == '1':
-        return registrar_usuario()
-    elif opcion == '2':
-        return iniciar_sesion()
-    elif opcion == '3':
-        exit()
-    else:
-        print('Opción no válida. Por favor, selecciona una opción válida.')
-
 # Definimos las funciones de registro e inicio de sesión
 def registrar_usuario():
     """
@@ -375,7 +356,4 @@ def iniciar_sesion():
         print('\nNOMBRE DE USUARIO O CONTRASEÑA INCORRECTOS. \n')
         return False
 
-# Inicio del programa
-if __name__ == "__main__":
-    while True:
-        seleccion()
+

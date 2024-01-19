@@ -15,7 +15,7 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 import bdd
 from bdd import (cifrar_con_aes, descifrar_con_aes, iniciar_sesion,
-                 registrar_usuario, seleccion)
+                 registrar_usuario)
 
 # Define las variables globales
 user_id=None
@@ -887,7 +887,7 @@ def gestionar_drive():
             # Si no hay archivos, imprime un mensaje y termina la función
             if not elementos:
                 print("No hay archivos disponibles.")
-                return
+                continue
 
             # Imprime la lista de archivos disponibles
             for idx, elemento in enumerate(elementos):
